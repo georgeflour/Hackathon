@@ -1,12 +1,31 @@
+# Web framework
 fastapi
 uvicorn[standard]
 python-multipart
+
+# Data & validation
 pydantic
-requests
 pandas
-sentence-transformers
-faiss-cpu
-spacy
 python-dotenv
+
+# Matching
+rapidfuzz
+
+# OCR (optional — requires: brew install tesseract)
+# pytesseract
+# Pillow
+
+# LLM
+openai
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+# SQLite is built into Python — no extra package needed.
+# FAISS (vector search for RAG knowledge corpus)
+faiss-cpu
+# Sentence embeddings
+sentence-transformers>=3.0
+
+# Testing
 pytest
+requests
 
