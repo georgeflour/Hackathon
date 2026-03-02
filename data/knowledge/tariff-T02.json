@@ -1,0 +1,6 @@
+{
+  "doc_id": "tariff-T02",
+  "title": "Business Tariff T02 — 2026 Rate Schedule",
+  "page": 1,
+  "text": "Tariff T02 is the standard business electricity tariff effective from 1 January 2026, designed for commercial and industrial customers with monthly consumption typically above 500 kWh. Energy charge rates: 0.13 EUR per kWh for all consumption (flat rate). Demand charge: 3.50 EUR per kW of peak demand recorded during the billing period (applicable to customers with a registered demand above 25 kW). Standing charge: 12.00 EUR per month. Regulated network charge (UoS): 0.035 EUR per kWh. Renewable energy levy (ETMEAR): 0.012 EUR per kWh. VAT: 24% applied to the total of energy charges, standing charge, demand charges, and network charges. Example for 1250 kWh consumption with 15 kW peak demand: energy charge = 1250 x 0.13 = 162.50 EUR; regulated network charge = 1250 x 0.035 = 43.75 EUR; ETMEAR = 1250 x 0.012 = 15.00 EUR; standing charge = 12.00 EUR; subtotal before VAT = 233.25 EUR; VAT 24% = 55.98 EUR; total = 289.23 EUR. Business customers registered for VAT may reclaim the VAT component through their VAT return. Tariff T02 requires a valid business tax registration number (AFM) on the account."
+}
