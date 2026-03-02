@@ -1,0 +1,21 @@
+{
+  "$id": "https://example.com/schemas/customer_context.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CustomerContext",
+  "type": "object",
+  "properties": {
+    "customer_id": {"type": "string"},
+    "account_numbers": {"type": "array", "items": {"type": "string"}},
+    "primary_account": {"type": "string"},
+    "customer_name": {"type": "string"},
+    "addresses": {"type": "array", "items": {"type": "string"}},
+    "service_meters": {"type": "array", "items": {"type": "string"}},
+    "active_tariff": {"type": "string"},
+    "segment": {"type": "string"},
+    "region": {"type": "string"},
+    "avg_kwh_6m": {"type": ["number","null"]},
+    "last_3_bills_total": {"type": ["number","null"]}
+  },
+  "required": ["customer_id","customer_name"]
+}
+

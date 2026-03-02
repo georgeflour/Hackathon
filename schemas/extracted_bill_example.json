@@ -1,0 +1,21 @@
+{
+  "extracted_id": "ex-0001",
+  "source_document": {"file_name": "sample_exact.png", "uri": "data/samples/sample_exact.png", "mime_type": "image/png"},
+  "ocr_confidence": 0.96,
+  "extraction_timestamp": "2026-03-01T12:00:00Z",
+  "bill_number": {"value": "B-2026-0001", "confidence": 0.99},
+  "account_number": {"value": "123456789", "normalized": "123456789", "confidence": 0.98},
+  "customer_name": {"value": "John Doe", "normalized": "john doe", "confidence": 0.95},
+  "customer_address": ["1 Main St", "Athens", "GR-10561"],
+  "bill_date": {"value": "2026-01-15", "confidence": 0.98},
+  "service_period": {"start": "2026-01-01", "end": "2026-01-31", "confidence": 0.98},
+  "total_due": {"value": 152.34, "currency": "EUR", "confidence": 0.97},
+  "line_items": [
+    {"line_seq": 1, "description": "Energy consumption", "quantity_kwh": 420, "unit_price": 0.12, "amount": 50.4},
+    {"line_seq": 2, "description": "Regulated charges", "amount": 30.0},
+    {"line_seq": 3, "description": "Taxes", "amount": 71.94}
+  ],
+  "meter_ids": ["MTR-987"],
+  "match_hints": {"account_hash": "hash_abc123", "name_norm": "john doe", "meter_list": ["MTR-987"]}
+}
+
