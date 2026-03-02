@@ -9,3 +9,6 @@ data/extracted/
 ui/node_modules/
 ui/.next/
 
+data/dwh/billing.db
+data/knowledge/index.faiss
+data/knowledge/index_meta.json
