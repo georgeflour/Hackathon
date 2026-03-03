@@ -11,9 +11,10 @@ python-dotenv
 # Matching
 rapidfuzz
 
-# OCR (optional — requires: brew install tesseract)
-# pytesseract
-# Pillow
+# OCR 
+azure-ai-documentintelligence
+azure-core
+python-dotenv
 
 # LLM
 openai

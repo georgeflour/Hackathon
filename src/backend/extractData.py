@@ -1,13 +1,8 @@
 """
-DEI (ΔΕΗ) Invoice Extractor — front page + back page
-=====================================================
-Usage:
-    python3 extractData.py front.jpg back.jpg
-
-Requirements:
-    pip install azure-ai-documentintelligence azure-core
+Extract structured data from OCR lines of a DEI electricity bill.
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import re
 import os
 import sys
