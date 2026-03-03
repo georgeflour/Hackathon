@@ -11,7 +11,7 @@ from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 
 ENDPOINT = "https://recognisionimage.cognitiveservices.azure.com/"
-KEY      = ""
+KEY = os.environ.get("AZURE_DOC_KEY", "")
 
 def get_ocr_lines(file_path: str) -> list[str]:
     client = DocumentIntelligenceClient(endpoint=ENDPOINT, credential=AzureKeyCredential(KEY))
