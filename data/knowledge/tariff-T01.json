@@ -1,6 +1,0 @@
-{
-  "doc_id": "tariff-T01",
-  "title": "Residential Tariff T01 — 2026 Rate Schedule",
-  "page": 1,
-  "text": "Tariff T01 is the standard residential electricity tariff effective from 1 January 2026. Energy charge rates: 0.12 EUR per kWh for consumption up to 500 kWh per month; 0.15 EUR per kWh for consumption above 500 kWh per month. Standing charge: 5.00 EUR per month (fixed, regardless of consumption). Regulated network charge (UoS): 0.03 EUR per kWh, applied to all consumption. Renewable energy levy (ETMEAR): 0.01 EUR per kWh. VAT: 13% applied to the sum of energy charges, standing charge, and network charges. Example for 420 kWh consumption: energy charge = 420 x 0.12 = 50.40 EUR; regulated network charge = 420 x 0.03 = 12.60 EUR; ETMEAR = 420 x 0.01 = 4.20 EUR; standing charge = 5.00 EUR; subtotal before VAT = 72.20 EUR; VAT 13% = 9.39 EUR; total = 81.59 EUR. Note: the regulated charges (network + ETMEAR) are included in the 'Regulated network charges' line item on your bill. Tariff T01 is available to all residential customers. Customers consuming more than 500 kWh per month consistently may benefit from reviewing alternative tariff options."
-}

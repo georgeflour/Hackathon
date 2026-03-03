@@ -1,3 +1,0 @@
-customer_id,account_numbers,primary_account,customer_name,addresses,service_meters,active_tariff,segment,region,avg_kwh_6m,last_3_bills_total
-cust-42,123456789,123456789,John Doe,1 Main St Athens,MTR-987,T01,residential,Athens,350,382.84
-cust-99,987654321,987654321,Acme Energy SA,10 Industrial Ave Attica,MTR-555,T02,business,Attica,1150,821.00
