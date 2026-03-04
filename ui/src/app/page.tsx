@@ -10,6 +10,7 @@ interface Message {
   id: string;
   role: Role;
   content: string;
+  imageUrls?: string[];          // blob preview URLs for image attachments
   // optional structured payload after agent runs
   stage?: "upload" | "match" | "answer";
   payload?: Record<string, unknown>;
@@ -159,14 +160,40 @@ function Bubble({ msg }: { msg: Message }) {
           border: isUser ? "1px solid rgba(0,163,224,0.15)" : "1px solid rgba(0,0,0,0.08)",
           boxShadow: isUser ? "0 1px 6px rgba(0,163,224,0.1)" : "0 1px 4px rgba(0,0,0,0.06)",
           borderRadius: isUser ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
-          padding: "10px 14px",
+          padding: msg.imageUrls?.length ? "8px" : "10px 14px",
           lineHeight: 1.6,
           fontSize: 14,
           color: "#111827",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
+          overflow: "hidden",
         }}>
-          {msg.content === "…" ? <TypingDots /> : msg.content}
+          {/* Image thumbnails */}
+          {msg.imageUrls && msg.imageUrls.length > 0 && (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: msg.imageUrls.length === 1 ? "1fr" : "1fr 1fr",
+              gap: 4,
+              marginBottom: msg.content ? 8 : 0,
+            }}>
+              {msg.imageUrls.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`attachment ${i + 1}`}
+                  style={{
+                    width: "100%",
+                    maxWidth: 240,
+                    borderRadius: 10,
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
+              ))}
+            </div>
+          )}
+          {/* Text content */}
+          {msg.content && (msg.content === "…" ? <TypingDots /> : <span style={{ padding: msg.imageUrls?.length ? "0 6px 4px" : undefined, display: "block" }}>{msg.content}</span>)}
         </div>
 
         {/* Optional structured payload */}
@@ -260,12 +287,12 @@ export default function Home() {
     setIsTyping(true);
 
     // Compose a single user bubble combining files + text
-    const names = files.map((f) => f.name).join(", ");
-    const userContent = [
-      hasPendingFiles ? `${names}` : "",
-      hasQuestion ? q : "",
-    ].filter(Boolean).join("\n");
-    addMsg({ role: "user", content: userContent });
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    const nonImageFiles = files.filter((f) => !f.type.startsWith("image/"));
+    const imageUrls = imageFiles.map((f) => URL.createObjectURL(f));
+    const nonImageNames = nonImageFiles.length > 0 ? `📎 ${nonImageFiles.map((f) => f.name).join(", ")}` : "";
+    const userContent = [nonImageNames, hasQuestion ? q : ""].filter(Boolean).join("\n");
+    addMsg({ role: "user", content: userContent, imageUrls: imageUrls.length > 0 ? imageUrls : undefined });
     setFiles([]); // clear attachment bar immediately
 
     let currentExtracted = extracted;
