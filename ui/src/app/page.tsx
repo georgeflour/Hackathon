@@ -1,96 +1,548 @@
 "use client";
 
-import { useState } from "react";
-import UploadForm      from "@/components/UploadForm";
-import ExtractedPreview from "@/components/ExtractedPreview";
-import MatchPanel       from "@/components/MatchPanel";
-import AnswerPanel      from "@/components/AnswerPanel";
+import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 import { uploadBill, matchBill, explainBill } from "@/lib/api";
 
-const DEFAULT_QUESTION = "Why is my bill higher this month?";
+/* ─── types ──────────────────────────────────────────────────────────── */
+type Role = "user" | "assistant" | "system";
+interface Message {
+  id: string;
+  role: Role;
+  content: string;
+  // optional structured payload after agent runs
+  stage?: "upload" | "match" | "answer";
+  payload?: Record<string, unknown>;
+}
 
-export default function Home() {
-  const [extracted,   setExtracted]   = useState<Record<string, unknown> | null>(null);
-  const [matchResult, setMatchResult] = useState<Record<string, unknown> | null>(null);
-  const [answer,      setAnswer]      = useState<Record<string, unknown> | null>(null);
-  const [question,    setQuestion]    = useState(DEFAULT_QUESTION);
-  const [loading,     setLoading]     = useState<string | null>(null);
-  const [error,       setError]       = useState<string | null>(null);
+/* ─── helpers ────────────────────────────────────────────────────────── */
+function uid() {
+  return Math.random().toString(36).slice(2);
+}
 
-  async function handleUpload(file: File) {
-    setError(null);
-    setExtracted(null);
-    setMatchResult(null);
-    setAnswer(null);
-
-    try {
-      setLoading("⚙️  Agent 1 — Extracting bill data…");
-      const ext = await uploadBill(file);
-      setExtracted(ext);
-
-      setLoading("🔍  Agent 2 — Matching customer in DWH…");
-      const match = await matchBill(ext);
-      setMatchResult(match);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  async function handleExplain() {
-    if (!extracted || !matchResult) return;
-    setError(null);
-    setAnswer(null);
-
-    try {
-      setLoading("✨  Agent 3 — Generating grounded answer…");
-      const result = await explainBill(extracted, matchResult, question);
-      setAnswer(result);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(null);
-    }
-  }
-
+function DEHLogo({ size = 38 }: { size?: number }) {
   return (
-    <div className="space-y-6">
-      {/* Upload */}
-      <UploadForm onUpload={handleUpload} />
+    <Image
+      src="/bot-picture.png"
+      alt="ΔΕΗ Logo"
+      width={size}
+      height={size}
+      style={{ borderRadius: 8, objectFit: "contain" }}
+      priority
+    />
+  );
+}
 
-      {/* Loading indicator */}
-      {loading && (
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700 animate-pulse">
-          <span className="text-lg">🔄</span>
-          {loading}
-        </div>
-      )}
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return "Good morning.";
+  if (hour >= 12 && hour < 17) return "Good afternoon.";
+  if (hour >= 17 && hour < 21) return "Good evening.";
+  return "Hello there, Night Owl!";
+}
 
-      {/* Error */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
-          <span className="font-semibold">Error: </span>{error}
-        </div>
-      )}
-
-      {/* Agent 1 output */}
-      {extracted && <ExtractedPreview extracted={extracted} />}
-
-      {/* Agent 2 output + question input */}
-      {matchResult && (
-        <MatchPanel
-          matchResult={matchResult}
-          question={question}
-          onQuestionChange={setQuestion}
-          onExplain={handleExplain}
-          loading={loading !== null}
-        />
-      )}
-
-      {/* Agent 3 output */}
-      {answer && <AnswerPanel answer={answer} />}
+/* ─── empty state (centered greeting) ───────────────────────────────── */
+function EmptyState() {
+  return (
+    <div style={{
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+      padding: "0 16px",
+      pointerEvents: "none",
+    }}>
+      <div style={{
+        fontSize: 36,
+        fontWeight: 700,
+        color: "#111827",
+        letterSpacing: "-0.03em",
+        lineHeight: 1.1,
+        textAlign: "center",
+      }}>
+        {getGreeting()}
+      </div>
+      <div style={{
+        fontSize: 15,
+        color: "#9CA3AF",
+        fontWeight: 400,
+        textAlign: "center",
+      }}>
+        How can I help you today?
+      </div>
     </div>
   );
 }
 
+function TypingDots() {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 2px" }}>
+      <span className="typing-dot" />
+      <span className="typing-dot" />
+      <span className="typing-dot" />
+    </span>
+  );
+}
+
+/* ─── card for extracted / match data ───────────────────────────────── */
+function DataCard({ title, data }: { title: string; data: Record<string, unknown> }) {
+  const rows = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  return (
+    <div style={{
+      background: "rgba(0,163,224,0.05)",
+      border: "1px solid rgba(0,163,224,0.2)",
+      borderRadius: 12,
+      padding: "14px 16px",
+      marginTop: 10,
+      fontSize: 13,
+    }}>
+      <div style={{ color: "#00A3E0", fontWeight: 600, marginBottom: 8, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>{title}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
+        {rows.slice(0, 10).map(([k, v]) => (
+          <>
+            <span key={k + "-k"} style={{ color: "#9CA3AF", whiteSpace: "nowrap" }}>{k.replace(/_/g, " ")}</span>
+            <span key={k + "-v"} style={{ color: "#111827", wordBreak: "break-all" }}>{String(v)}</span>
+          </>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── individual chat bubble ─────────────────────────────────────────── */
+function Bubble({ msg }: { msg: Message }) {
+  const isUser = msg.role === "user";
+  const isSystem = msg.role === "system";
+
+  if (isSystem) {
+    return (
+      <div className="fade-up" style={{ textAlign: "center", padding: "4px 0" }}>
+        <span style={{
+          fontSize: 11,
+          color: "#9CA3AF",
+          background: "rgba(0,0,0,0.04)",
+          borderRadius: 20,
+          padding: "2px 10px",
+          letterSpacing: "0.04em",
+        }}>{msg.content}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade-up" style={{
+      display: "flex",
+      flexDirection: isUser ? "row-reverse" : "row",
+      alignItems: "flex-end",
+      gap: 10,
+    }}>
+      {/* Avatar */}
+      {!isUser && (
+        <div style={{ flexShrink: 0, marginBottom: 2 }}>
+          <DEHLogo size={32} />
+        </div>
+      )}
+
+      <div style={{
+        maxWidth: "75%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: isUser ? "flex-end" : "flex-start",
+        gap: 4,
+      }}>
+        <div style={{
+          background: isUser
+            ? "linear-gradient(135deg, #c8ecf8 0%, #e8f7fd 100%)"
+            : "#FFFFFF",
+          border: isUser ? "1px solid rgba(0,163,224,0.15)" : "1px solid rgba(0,0,0,0.08)",
+          boxShadow: isUser ? "0 1px 6px rgba(0,163,224,0.1)" : "0 1px 4px rgba(0,0,0,0.06)",
+          borderRadius: isUser ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
+          padding: "10px 14px",
+          lineHeight: 1.6,
+          fontSize: 14,
+          color: "#111827",
+          whiteSpace: "pre-wrap",
+          wordBreak: "break-word",
+        }}>
+          {msg.content === "…" ? <TypingDots /> : msg.content}
+        </div>
+
+        {/* Optional structured payload */}
+        {msg.payload && msg.stage === "upload" && (
+          <DataCard title="Bill Extracted" data={msg.payload as Record<string, unknown>} />
+        )}
+        {msg.payload && msg.stage === "match" && (
+          <DataCard title="Customer Matched" data={msg.payload as Record<string, unknown>} />
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+/* ─── main page ──────────────────────────────────────────────────────── */
+export default function Home() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [extracted, setExtracted] = useState<Record<string, unknown> | null>(null);
+  const [matchResult, setMatchResult] = useState<Record<string, unknown> | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
+
+  function addMsg(msg: Omit<Message, "id">) {
+    const full: Message = { ...msg, id: uid() };
+    setMessages((prev) => [...prev, full]);
+    return full.id;
+  }
+
+  function updateMsg(id: string, patch: Partial<Message>) {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }
+
+  /* ── file upload flow ── */
+  async function handleFileChosen(chosen: File) {
+    setFile(chosen);
+    addMsg({ role: "user", content: `📎 ${chosen.name}` });
+
+    const typingId = addMsg({ role: "assistant", content: "…" });
+    setIsTyping(true);
+
+    addMsg({ role: "system", content: "Agent 1 — Extracting bill data…" });
+
+    try {
+      const ext = await uploadBill(chosen);
+      setExtracted(ext);
+      updateMsg(typingId, {
+        content: "I analyzed your bill. Here are the extracted details:",
+        stage: "upload",
+        payload: ext,
+      });
+
+      addMsg({ role: "system", content: "Agent 2 — Matching customer in DWH…" });
+      const match = await matchBill(ext);
+      setMatchResult(match);
+      const matchId = addMsg({ role: "assistant", content: "…" });
+      updateMsg(matchId, {
+        content: "Found your profile in the system:",
+        stage: "match",
+        payload: match,
+      });
+
+      addMsg({
+        role: "assistant",
+        content: "You can now ask me anything about your bill, e.g. \"Why is my bill higher than usual?\"",
+      });
+    } catch (e) {
+      updateMsg(typingId, {
+        content: `❌ Error: ${String(e)}`,
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  }
+
+  /* ── question flow ── */
+  async function handleSend() {
+    const q = input.trim();
+    if (!q) return;
+    setInput("");
+
+    addMsg({ role: "user", content: q });
+
+    if (!extracted || !matchResult) {
+      addMsg({
+        role: "assistant",
+        content: "Please upload your bill first so I can answer your question.",
+      });
+      return;
+    }
+
+    const typingId = addMsg({ role: "assistant", content: "…" });
+    setIsTyping(true);
+    addMsg({ role: "system", content: "Agent 3 — Generating answer with RAG…" });
+
+    try {
+      const result = await explainBill(extracted, matchResult, q);
+      const answerText =
+        (result.answer_text as string) ||
+        (result.answer as string) ||
+        JSON.stringify(result);
+      updateMsg(typingId, { content: answerText });
+    } catch (e) {
+      updateMsg(typingId, { content: `❌ Error: ${String(e)}` });
+    } finally {
+      setIsTyping(false);
+    }
+  }
+
+  function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setIsDragging(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) handleFileChosen(dropped);
+  }
+
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      height: "100vh",
+      background: "var(--bg-main)",
+      overflow: "hidden",
+    }}>
+
+      {/* ── Header ── */}
+      <header style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "14px 24px",
+        background: "#FFFFFF",
+        borderBottom: "1px solid rgba(0,0,0,0.08)",
+        boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
+        flexShrink: 0,
+        zIndex: 10,
+      }}>
+        <DEHLogo size={40} />
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", letterSpacing: "-0.01em" }}>
+            AI Billing Agent
+          </div>
+          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>
+            Powered by Hack to the Future
+          </div>
+        </div>
+        <div style={{
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          color: "#FFFFFF",
+          background: "linear-gradient(135deg, #FA4616 0%, #00A3E0 100%)",
+          border: "none",
+          borderRadius: 20,
+          padding: "4px 12px",
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.85)", display: "inline-block" }} />
+          Online
+        </div>
+      </header>
+
+      {/* ── Messages / Empty state ── */}
+      <main style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "24px 16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        maxWidth: 720,
+        width: "100%",
+        margin: "0 auto",
+      }}>
+        {messages.length === 0 ? (
+          <EmptyState />
+        ) : (
+          messages.map((msg) => (
+            <Bubble key={msg.id} msg={msg} />
+          ))
+        )}
+        <div ref={bottomRef} />
+      </main>
+
+      {/* ── Input area ── */}
+      <div style={{
+        flexShrink: 0,
+        padding: "12px 16px 20px",
+        background: "var(--bg-main)",
+        borderTop: "1px solid rgba(0,0,0,0.07)",
+      }}>
+        <div
+          style={{
+            maxWidth: 720,
+            margin: "0 auto",
+            background: isDragging ? "rgba(0,163,224,0.05)" : "#FFFFFF",
+            border: `1px solid ${isDragging ? "rgba(0,163,224,0.4)" : "rgba(0,0,0,0.1)"}`,
+            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+            borderRadius: 16,
+            transition: "border-color 0.2s, background 0.2s",
+            overflow: "hidden",
+          }}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+        >
+          {/* File upload bar */}
+          {file && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 14px",
+              borderBottom: "1px solid rgba(0,0,0,0.07)",
+              fontSize: 12,
+              color: "#00A3E0",
+            }}>
+              <span>📎</span>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+              <button
+                onClick={() => { setFile(null); setExtracted(null); setMatchResult(null); }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", fontSize: 16, lineHeight: 1, padding: "0 2px" }}
+              >×</button>
+            </div>
+          )}
+
+          {/* Drag hint */}
+          {isDragging && (
+            <div style={{ textAlign: "center", padding: "16px", color: "#00A3E0", fontSize: 13 }}>
+              Drop your file here…
+            </div>
+          )}
+
+          {/* Textarea */}
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKey}
+            placeholder={extracted ? "Ask a question about your bill…" : "Ask a question or drop your bill here…"}
+            rows={1}
+            style={{
+              display: "block",
+              width: "100%",
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              resize: "none",
+              padding: "12px 14px",
+              fontSize: 14,
+              color: "#111827",
+              lineHeight: 1.6,
+              fontFamily: "inherit",
+              overflowY: "auto",
+              maxHeight: 120,
+            }}
+          />
+
+          {/* Toolbar */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "0 10px 10px",
+          }}>
+            {/* Attach */}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*,application/pdf"
+              style={{ display: "none" }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChosen(f); }}
+            />
+            <button
+              onClick={() => fileRef.current?.click()}
+              title="Upload bill"
+              className="plus-btn"
+              style={{
+                background: "none",
+                border: "1px solid rgba(0,0,0,0.1)",
+                borderRadius: "50%",
+                width: 34,
+                height: 34,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "border-color 0.2s, background 0.2s",
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="plus-icon"
+              >
+                <path
+                  d="M7 1V13M1 7H13"
+                  stroke="#6B7280"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Send */}
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isTyping}
+              style={{
+                background: input.trim() && !isTyping
+                  ? "linear-gradient(135deg, #00A3E0 0%, #e8f7fd 100%)"
+                  : "rgba(0,0,0,0.05)",
+                border: "none",
+                borderRadius: 10,
+                width: 36,
+                height: 36,
+                cursor: input.trim() && !isTyping ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "background 0.25s",
+              }}
+              onMouseDown={(e) => { if (input.trim() && !isTyping) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
+              onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className={input.trim() && !isTyping ? "arrow-up" : "arrow-right"}
+                style={{ display: "block" }}
+              >
+                <path
+                  d="M3 8L13 8M13 8L8.5 3.5M13 8L8.5 12.5"
+                  stroke={input.trim() && !isTyping ? "#0077a8" : "#9CA3AF"}
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 8, fontSize: 10, color: "#D1D5DB" }}>
+          All Rights Reserved © Hack to the Future {new Date().getFullYear()}
+        </div>
+      </div>
+    </div>
+  );
+}

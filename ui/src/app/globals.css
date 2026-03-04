@@ -1,3 +1,164 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --deh-orange: #FA4616;
+    --deh-blue: #00A3E0;
+    --deh-white: #FFFFFF;
+    --bg-main: #F4F6FA;
+    --bg-card: #FFFFFF;
+    --bg-input: #FFFFFF;
+    --border: rgba(0, 0, 0, 0.08);
+    --border-strong: rgba(0, 0, 0, 0.13);
+    --text-primary: #111827;
+    --text-muted: #6B7280;
+    --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06), 0 2px 12px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    height: 100%;
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+    width: 4px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* ── Animations ── */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse-dot {
+
+    0%,
+    80%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.35;
+    }
+
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.fade-up {
+    animation: fadeUp 0.3s ease both;
+}
+
+/* ── Typing dots ── */
+.typing-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--deh-blue);
+    animation: pulse-dot 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* ── Send arrow button ── */
+@keyframes arrowBounceUp {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+
+    40% {
+        transform: rotate(-100deg) scale(1.15);
+    }
+
+    65% {
+        transform: rotate(-82deg) scale(0.95);
+    }
+
+    82% {
+        transform: rotate(-93deg) scale(1.05);
+    }
+
+    100% {
+        transform: rotate(-90deg) scale(1);
+    }
+}
+
+@keyframes arrowReset {
+    0% {
+        transform: rotate(-90deg);
+    }
+
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+.arrow-up {
+    animation: arrowBounceUp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.arrow-right {
+    animation: arrowReset 0.25s ease forwards;
+}
+
+/* ── Plus upload button ── */
+.plus-btn .plus-icon {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.plus-btn:hover .plus-icon {
+    transform: rotate(90deg);
+}
+
+.plus-btn:hover {
+    border-color: rgba(0, 163, 224, 0.4) !important;
+    background: rgba(0, 163, 224, 0.06) !important;
+}
+
+.plus-btn .plus-icon path {
+    transition: stroke 0.2s ease;
+}
+
+.plus-btn:hover .plus-icon path {
+    stroke: #00A3E0;
+}
