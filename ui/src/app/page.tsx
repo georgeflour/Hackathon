@@ -187,7 +187,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [extracted, setExtracted] = useState<Record<string, unknown> | null>(null);
   const [matchResult, setMatchResult] = useState<Record<string, unknown> | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -210,18 +210,18 @@ export default function Home() {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }
 
-  /* ── file upload flow ── */
-  async function handleFileChosen(chosen: File) {
-    setFile(chosen);
-    addMsg({ role: "user", content: `📎 ${chosen.name}` });
+  /* ── attach file (no processing yet) ── */
+  function handleFileChosen(chosen: File) {
+    setFiles((prev) => [...prev, chosen]);
+  }
 
+  /* ── process all pending files through Agent 1 + 2 ── */
+  async function processFiles(pending: File[]): Promise<{ ext: Record<string, unknown>; match: Record<string, unknown> } | null> {
     const typingId = addMsg({ role: "assistant", content: "…" });
     setIsTyping(true);
 
-    addMsg({ role: "system", content: "Agent 1 — Extracting bill data…" });
-
     try {
-      const ext = await uploadBill(chosen);
+      const ext = await uploadBill(pending[0]);
       setExtracted(ext);
       updateMsg(typingId, {
         content: "I analyzed your bill. Here are the extracted details:",
@@ -229,7 +229,6 @@ export default function Home() {
         payload: ext,
       });
 
-      addMsg({ role: "system", content: "Agent 2 — Matching customer in DWH…" });
       const match = await matchBill(ext);
       setMatchResult(match);
       const matchId = addMsg({ role: "assistant", content: "…" });
@@ -239,50 +238,84 @@ export default function Home() {
         payload: match,
       });
 
-      addMsg({
-        role: "assistant",
-        content: "You can now ask me anything about your bill, e.g. \"Why is my bill higher than usual?\"",
-      });
+      setFiles([]);
+      return { ext, match };
     } catch (e) {
-      updateMsg(typingId, {
-        content: `❌ Error: ${String(e)}`,
-      });
+      updateMsg(typingId, { content: `Error: ${String(e)}` });
+      return null;
     } finally {
       setIsTyping(false);
     }
   }
 
-  /* ── question flow ── */
+  /* ── send: handles files + optional question ── */
   async function handleSend() {
     const q = input.trim();
-    if (!q) return;
+    const hasPendingFiles = files.length > 0;
+    const hasQuestion = q.length > 0;
+
+    if (!hasPendingFiles && !hasQuestion) return;
+
     setInput("");
+    setIsTyping(true);
 
-    addMsg({ role: "user", content: q });
+    // Compose a single user bubble combining files + text
+    const names = files.map((f) => f.name).join(", ");
+    const userContent = [
+      hasPendingFiles ? `📎 ${names}` : "",
+      hasQuestion ? q : "",
+    ].filter(Boolean).join("\n");
+    addMsg({ role: "user", content: userContent });
+    setFiles([]); // clear attachment bar immediately
 
-    if (!extracted || !matchResult) {
-      addMsg({
-        role: "assistant",
-        content: "Please upload your bill first so I can answer your question.",
-      });
-      return;
+    let currentExtracted = extracted;
+    let currentMatch = matchResult;
+
+    // Step 1: process pending files if any
+    if (hasPendingFiles) {
+      const result = await processFiles(files);
+      if (!result) {
+        // processFiles already showed the error bubble — stop here
+        setIsTyping(false);
+        return;
+      }
+      currentExtracted = result.ext;
+      currentMatch = result.match;
+      if (!hasQuestion) {
+        addMsg({
+          role: "assistant",
+          content: "You can now ask me anything about your bill, e.g. \"Why is my bill higher than usual?\"",
+        });
+        setIsTyping(false);
+        return;
+      }
     }
 
-    const typingId = addMsg({ role: "assistant", content: "…" });
-    setIsTyping(true);
-    addMsg({ role: "system", content: "Agent 3 — Generating answer with RAG…" });
+    // Step 2: answer question if provided
+    if (hasQuestion) {
+      if (!currentExtracted || !currentMatch) {
+        addMsg({
+          role: "assistant",
+          content: "Please upload your bill first so I can answer your question.",
+        });
+        setIsTyping(false);
+        return;
+      }
 
-    try {
-      const result = await explainBill(extracted, matchResult, q);
-      const answerText =
-        (result.answer_text as string) ||
-        (result.answer as string) ||
-        JSON.stringify(result);
-      updateMsg(typingId, { content: answerText });
-    } catch (e) {
-      updateMsg(typingId, { content: `❌ Error: ${String(e)}` });
-    } finally {
-      setIsTyping(false);
+      const typingId = addMsg({ role: "assistant", content: "…" });
+
+      try {
+        const result = await explainBill(currentExtracted, currentMatch, q);
+        const answerText =
+          (result.answer_text as string) ||
+          (result.answer as string) ||
+          JSON.stringify(result);
+        updateMsg(typingId, { content: answerText });
+      } catch (e) {
+        updateMsg(typingId, { content: `Error: ${String(e)}` });
+      } finally {
+        setIsTyping(false);
+      }
     }
   }
 
@@ -295,9 +328,10 @@ export default function Home() {
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) handleFileChosen(dropped);
+    const dropped = Array.from(e.dataTransfer.files);
+    dropped.forEach((f) => handleFileChosen(f));
   }
 
   return (
@@ -393,7 +427,7 @@ export default function Home() {
           onDrop={handleDrop}
         >
           {/* File upload bar */}
-          {file && (
+          {files.length > 0 && (
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -403,10 +437,12 @@ export default function Home() {
               fontSize: 12,
               color: "#00A3E0",
             }}>
-              <span>📎</span>
-              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+              <span></span>
+              <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {files.length === 1 ? files[0].name : `${files.length} files selected`}
+              </span>
               <button
-                onClick={() => { setFile(null); setExtracted(null); setMatchResult(null); }}
+                onClick={() => { setFiles([]); setExtracted(null); setMatchResult(null); }}
                 style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", fontSize: 16, lineHeight: 1, padding: "0 2px" }}
               >×</button>
             </div>
@@ -425,6 +461,8 @@ export default function Home() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
+            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(e as unknown as React.DragEvent); }}
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
             placeholder={extracted ? "Ask a question about your bill…" : "Ask a question or drop your bill here…"}
             rows={1}
             style={{
@@ -456,8 +494,9 @@ export default function Home() {
               ref={fileRef}
               type="file"
               accept="image/*,application/pdf"
+              multiple
               style={{ display: "none" }}
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileChosen(f); }}
+              onChange={(e) => { Array.from(e.target.files ?? []).forEach((f) => handleFileChosen(f)); }}
             />
             <button
               onClick={() => fileRef.current?.click()}
@@ -499,23 +538,23 @@ export default function Home() {
             {/* Send */}
             <button
               onClick={handleSend}
-              disabled={!input.trim() || isTyping}
+              disabled={(files.length === 0 && !input.trim()) || isTyping}
               style={{
-                background: input.trim() && !isTyping
+                background: (input.trim() || files.length > 0) && !isTyping
                   ? "linear-gradient(135deg, #00A3E0 0%, #e8f7fd 100%)"
                   : "rgba(0,0,0,0.05)",
                 border: "none",
                 borderRadius: 10,
                 width: 36,
                 height: 36,
-                cursor: input.trim() && !isTyping ? "pointer" : "not-allowed",
+                cursor: (input.trim() || files.length > 0) && !isTyping ? "pointer" : "not-allowed",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
                 transition: "background 0.25s",
               }}
-              onMouseDown={(e) => { if (input.trim() && !isTyping) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
+              onMouseDown={(e) => { if ((input.trim() || files.length > 0) && !isTyping) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
               onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
             >
               <svg
@@ -524,7 +563,7 @@ export default function Home() {
                 viewBox="0 0 16 16"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className={input.trim() && !isTyping ? "arrow-up" : "arrow-right"}
+                className={(input.trim() || files.length > 0) && !isTyping ? "arrow-up" : "arrow-right"}
                 style={{ display: "block" }}
               >
                 <path
