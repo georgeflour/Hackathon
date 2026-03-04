@@ -1,0 +1,127 @@
+CREATE TABLE Billing_Header (
+    bill_id INT IDENTITY(1,1) PRIMARY KEY,
+    
+    issue_date DATE NOT NULL,
+    period_from DATE NOT NULL,
+    period_to DATE NOT NULL,
+
+    customer_id INT NOT NULL,
+    contract_id INT NOT NULL,
+    account_id VARCHAR(50) NOT NULL,
+
+    supply_number INT NULL,
+    meter_id VARCHAR(50) NULL,
+
+    tariff_code VARCHAR(20) NOT NULL,
+
+    total_amount DECIMAL(12,2) NOT NULL,
+
+    created_at DATETIME 
+);
+
+CREATE TABLE Billing_Lines (
+    line_id INT IDENTITY(1,1) PRIMARY KEY,
+
+    bill_id INT NOT NULL,
+
+    charge_type VARCHAR(20) NOT NULL, 
+    -- 'energy' / 'regulated' / 'taxes' / 'other'
+
+    description VARCHAR(255),
+
+    quantity_kwh DECIMAL(12,2) NULL,
+    unit_price DECIMAL(12,5) NULL,
+    amount DECIMAL(12,2) NOT NULL,
+
+    CONSTRAINT FK_BillingLines_Bill
+        FOREIGN KEY (bill_id)
+        REFERENCES Billing_Header(bill_id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE Customer_Context (
+    customer_id INT NOT NULL,
+    contract_id INT NOT NULL,
+    account_id VARCHAR(50) NOT NULL,
+
+    active_tariff VARCHAR(20) NOT NULL,
+    segment VARCHAR(20) NOT NULL, 
+    -- 'residential' / 'business'
+
+    region VARCHAR(100),
+
+    avg_kwh_6m DECIMAL(12,2),
+    last_3_bills_total DECIMAL(12,2),
+
+    PRIMARY KEY (customer_id, contract_id)
+);
+
+
+INSERT INTO Billing_Header (
+    issue_date,
+    period_from,
+    period_to,
+    customer_id,
+    contract_id,
+    account_id,
+    supply_number,
+    meter_id,
+    tariff_code,
+    total_amount
+)
+VALUES (
+    '2026-02-06',
+    '2025-12-31',
+    '2026-02-04',
+    1,
+    1,
+    '1476458196',
+    100295749,
+    NULL,
+    'Γ1Ν',
+    182.00
+);
+INSERT INTO Billing_Lines (bill_id, charge_type, description, quantity_kwh, unit_price, amount) VALUES
+(1, 'energy', 'Energy charge normal', 336, NULL, 27.62),
+(1, 'energy', 'Energy charge reduced', NULL, NULL, 14.68),
+(1, 'energy', 'Fixed charge', NULL, NULL, 4.67),
+
+(1, 'regulated', 'ADMIE', NULL, NULL, 2.85),
+(1, 'regulated', 'DEDDIE', NULL, NULL, 4.78),
+(1, 'regulated', 'YKO', NULL, NULL, 1.96),
+(1, 'regulated', 'ETMEAR', NULL, NULL, 4.85),
+
+(1, 'taxes', 'Municipality DT', NULL, NULL, 16.00),
+(1, 'taxes', 'Municipality DF', NULL, NULL, 3.77),
+(1, 'taxes', 'TAP', NULL, NULL, 3.48),
+(1, 'taxes', 'ERT', NULL, NULL, 2.76),
+
+(1, 'other', 'EFK', NULL, NULL, 0.63),
+(1, 'other', 'EID Tel', NULL, NULL, 0.29),
+(1, 'other', 'Late interest', NULL, NULL, 0.75),
+(1, 'other', 'Paper bill charge', NULL, NULL, 0.03),
+(1, 'other', 'Rounding', NULL, NULL, 0.21),
+(1, 'other', 'Previous rounding', NULL, NULL, -0.05),
+
+(1, 'taxes', 'VAT 6%', NULL, NULL, 3.72);
+
+INSERT INTO Customer_Context (
+    customer_id,
+    contract_id,
+    account_id,
+    active_tariff,
+    segment,
+    region,
+    avg_kwh_6m,
+    last_3_bills_total
+)
+VALUES (
+    1,
+    1,
+    '1476458196',
+    'Γ1Ν',
+    'residential',
+    'Unknown',
+    336,
+    182.00
+);
