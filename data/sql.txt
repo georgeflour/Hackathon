@@ -81,6 +81,29 @@ VALUES (
     'Γ1Ν',
     182.00
 );
+INSERT INTO Billing_Lines (bill_id, charge_type, description, quantity_kwh, unit_price, amount) VALUES
+(1, 'energy', 'Energy charge normal', 336, NULL, 27.62),
+(1, 'energy', 'Energy charge reduced', NULL, NULL, 14.68),
+(1, 'energy', 'Fixed charge', NULL, NULL, 4.67),
+
+(1, 'regulated', 'ADMIE', NULL, NULL, 2.85),
+(1, 'regulated', 'DEDDIE', NULL, NULL, 4.78),
+(1, 'regulated', 'YKO', NULL, NULL, 1.96),
+(1, 'regulated', 'ETMEAR', NULL, NULL, 4.85),
+
+(1, 'taxes', 'Municipality DT', NULL, NULL, 16.00),
+(1, 'taxes', 'Municipality DF', NULL, NULL, 3.77),
+(1, 'taxes', 'TAP', NULL, NULL, 3.48),
+(1, 'taxes', 'ERT', NULL, NULL, 2.76),
+
+(1, 'other', 'EFK', NULL, NULL, 0.63),
+(1, 'other', 'EID Tel', NULL, NULL, 0.29),
+(1, 'other', 'Late interest', NULL, NULL, 0.75),
+(1, 'other', 'Paper bill charge', NULL, NULL, 0.03),
+(1, 'other', 'Rounding', NULL, NULL, 0.21),
+(1, 'other', 'Previous rounding', NULL, NULL, -0.05),
+
+(1, 'taxes', 'VAT 6%', NULL, NULL, 3.72);
 
 INSERT INTO Customer_Context (
     customer_id,
