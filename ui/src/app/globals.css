@@ -4,7 +4,7 @@
     --deh-orange: #FA4616;
     --deh-blue: #00A3E0;
     --deh-white: #FFFFFF;
-    --bg-main: #F4F6FA;
+    --bg-main: #F0F5FA;
     --bg-card: #FFFFFF;
     --bg-input: #FFFFFF;
     --border: rgba(0, 0, 0, 0.08);
@@ -27,7 +27,8 @@ html,
 body {
     height: 100%;
     font-family: 'Inter', sans-serif;
-    background: var(--bg-main);
+    background: linear-gradient(145deg, #eaf4fb 0%, #f5f7fa 50%, #fef6f2 100%);
+    background-attachment: fixed;
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
 }

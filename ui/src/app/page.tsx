@@ -262,7 +262,7 @@ export default function Home() {
     // Compose a single user bubble combining files + text
     const names = files.map((f) => f.name).join(", ");
     const userContent = [
-      hasPendingFiles ? `📎 ${names}` : "",
+      hasPendingFiles ? `${names}` : "",
       hasQuestion ? q : "",
     ].filter(Boolean).join("\n");
     addMsg({ role: "user", content: userContent });
