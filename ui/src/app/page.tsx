@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
-import { uploadBill, matchBill, explainBill } from "@/lib/api";
+import { uploadBill } from "@/lib/api";
 
 /* ─── types ──────────────────────────────────────────────────────────── */
 type Role = "user" | "assistant" | "system";
@@ -242,33 +242,22 @@ export default function Home() {
     setFiles((prev) => [...prev, chosen]);
   }
 
-  /* ── process all pending files through Agent 1 + 2 ── */
-  async function processFiles(pending: File[]): Promise<{ ext: Record<string, unknown>; match: Record<string, unknown> } | null> {
+  /* ── process files: upload only ── */
+  async function processFiles(pending: File[]): Promise<Record<string, unknown> | null> {
     const typingId = addMsg({ role: "assistant", content: "…" });
     setIsTyping(true);
 
     try {
-      const ext = await uploadBill(pending[0]);
+      const ext = await uploadBill(pending);
       setExtracted(ext);
       updateMsg(typingId, {
-        content: "I analyzed your bill. Here are the extracted details:",
+        content: "I analysed your bill. Here are the extracted details:",
         stage: "upload",
         payload: ext,
       });
-
-      const match = await matchBill(ext);
-      setMatchResult(match);
-      const matchId = addMsg({ role: "assistant", content: "…" });
-      updateMsg(matchId, {
-        content: "Found your profile in the system:",
-        stage: "match",
-        payload: match,
-      });
-
-      setFiles([]);
-      return { ext, match };
+      return ext;
     } catch (e) {
-      updateMsg(typingId, { content: `Error: ${String(e)}` });
+      updateMsg(typingId, { content: `❌ ${String(e)}` });
       return null;
     } finally {
       setIsTyping(false);
@@ -296,18 +285,15 @@ export default function Home() {
     setFiles([]); // clear attachment bar immediately
 
     let currentExtracted = extracted;
-    let currentMatch = matchResult;
 
-    // Step 1: process pending files if any
+    // Step 1: upload + extract
     if (hasPendingFiles) {
-      const result = await processFiles(files);
-      if (!result) {
-        // processFiles already showed the error bubble — stop here
+      const ext = await processFiles(files);
+      if (!ext) {
         setIsTyping(false);
         return;
       }
-      currentExtracted = result.ext;
-      currentMatch = result.match;
+      currentExtracted = ext;
       if (!hasQuestion) {
         addMsg({
           role: "assistant",
@@ -318,31 +304,10 @@ export default function Home() {
       }
     }
 
-    // Step 2: answer question if provided
-    if (hasQuestion) {
-      if (!currentExtracted || !currentMatch) {
-        addMsg({
-          role: "assistant",
-          content: "Please upload your bill first so I can answer your question.",
-        });
-        setIsTyping(false);
-        return;
-      }
-
-      const typingId = addMsg({ role: "assistant", content: "…" });
-
-      try {
-        const result = await explainBill(currentExtracted, currentMatch, q);
-        const answerText =
-          (result.answer_text as string) ||
-          (result.answer as string) ||
-          JSON.stringify(result);
-        updateMsg(typingId, { content: answerText });
-      } catch (e) {
-        updateMsg(typingId, { content: `Error: ${String(e)}` });
-      } finally {
-        setIsTyping(false);
-      }
+    // Question-only (no files) — not yet supported
+    if (hasQuestion && !hasPendingFiles) {
+      addMsg({ role: "assistant", content: "Please upload your bill first." });
+      setIsTyping(false);
     }
   }
 

@@ -7,9 +7,10 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Record<string
   }
   return res.json();
 }
-export async function uploadBill(file: File): Promise<Record<string, unknown>> {
+export async function uploadBill(files: File[]): Promise<Record<string, unknown>> {
   const form = new FormData();
-  form.append("file", file);
+  form.append("file_front", files[0]);
+  if (files[1]) form.append("file_back", files[1]);
   return apiFetch("/upload", { method: "POST", body: form });
 }
 export async function matchBill(
