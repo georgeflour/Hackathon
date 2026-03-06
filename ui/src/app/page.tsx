@@ -507,9 +507,20 @@ export default function Home() {
         <div style={{ padding: "16px", borderBottom: "1px solid rgba(0,0,0,0.08)", fontWeight: 600, color: "#111827", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             Previous Chats
-            <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 400, marginTop: 2 }}>Saved locally in SQLite</div>
           </div>
-          <button onClick={() => setIsSidebarOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#9CA3AF" }}>×</button>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer", color: "#9CA3AF",
+              padding: "4px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.2s"
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.color = "#4B5563"; e.currentTarget.style.background = "rgba(0,0,0,0.05)" }}
+            onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent" }}
+            title="Close Sidebar"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
           {sessions.map(s => (
@@ -517,56 +528,68 @@ export default function Home() {
               key={s.id}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "8px 12px", background: currentSessionId === s.id ? "rgba(0,163,224,0.1)" : "transparent",
-                borderRadius: 8, cursor: "pointer", marginBottom: 4,
+                padding: "8px 10px", background: currentSessionId === s.id ? "rgba(0,163,224,0.08)" : "transparent",
+                borderRadius: 8, cursor: "pointer", marginBottom: 2,
+                border: currentSessionId === s.id ? "1px solid rgba(0,163,224,0.2)" : "1px solid transparent",
+                transition: "all 0.2s ease"
               }}
+              onMouseOver={(e) => { if (currentSessionId !== s.id) e.currentTarget.style.background = "rgba(0,0,0,0.03)" }}
+              onMouseOut={(e) => { if (currentSessionId !== s.id) e.currentTarget.style.background = "transparent" }}
               onClick={() => { if (editingSessionId !== s.id) loadSession(s.id) }}
             >
               {editingSessionId === s.id ? (
                 <form
                   onSubmit={(e) => handleRenameSession(e, s.id)}
-                  style={{ display: "flex", gap: "4px", width: "100%" }}
+                  style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}
                 >
                   <input
                     autoFocus
                     value={editSessionTitle}
                     onChange={(e) => setEditSessionTitle(e.target.value)}
-                    style={{ flex: 1, background: "#fff", border: "1px solid #d1d5db", borderRadius: 4, padding: "2px 4px", fontSize: 13 }}
+                    style={{ flex: 1, background: "#fff", border: "1px solid #00A3E0", borderRadius: 4, padding: "4px 8px", fontSize: 13, outline: "none", boxShadow: "0 0 0 2px rgba(0, 163, 224, 0.2)" }}
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <button type="submit" style={{ background: "none", border: "none", cursor: "pointer", color: "#10B981" }} onClick={(e) => e.stopPropagation()}>✓</button>
-                  <button type="button" style={{ background: "none", border: "none", cursor: "pointer", color: "#EF4444" }} onClick={(e) => { e.stopPropagation(); setEditingSessionId(null); }}>✕</button>
+                  <button type="submit" style={{ background: "#10B981", border: "none", borderRadius: "4px", padding: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()} title="Save">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  </button>
+                  <button type="button" style={{ background: "#EF4444", border: "none", borderRadius: "4px", padding: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center" }} onClick={(e) => { e.stopPropagation(); setEditingSessionId(null); }} title="Cancel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
                 </form>
               ) : (
                 <>
                   <button
                     style={{
                       flex: 1, textAlign: "left", background: "none", border: "none", cursor: "pointer",
-                      color: currentSessionId === s.id ? "#00A3E0" : "#4B5563",
-                      fontWeight: currentSessionId === s.id ? 600 : 400,
+                      color: currentSessionId === s.id ? "#00A3E0" : "#374151",
+                      fontWeight: currentSessionId === s.id ? 600 : 500,
                       fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
                     }}
                   >
                     {s.title || "New Chat"}
                   </button>
-                  <div style={{ display: "flex", gap: 4, opacity: 0.6 }}>
+                  <div style={{ display: "flex", gap: 2 }}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditSessionTitle(s.title);
                         setEditingSessionId(s.id);
                       }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13 }}
+                      style={{ background: "transparent", border: "none", cursor: "pointer", color: "#9CA3AF", padding: "6px", borderRadius: "6px", display: "flex", alignItems: "center", transition: "all 0.2s" }}
+                      onMouseOver={(e) => { e.currentTarget.style.color = "#00A3E0"; e.currentTarget.style.background = "rgba(0,163,224,0.1)" }}
+                      onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent" }}
                       title="Rename"
                     >
-                      ✏️
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
                     </button>
                     <button
                       onClick={(e) => handleDeleteSession(e, s.id)}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13 }}
+                      style={{ background: "transparent", border: "none", cursor: "pointer", color: "#9CA3AF", padding: "6px", borderRadius: "6px", display: "flex", alignItems: "center", transition: "all 0.2s" }}
+                      onMouseOver={(e) => { e.currentTarget.style.color = "#EF4444"; e.currentTarget.style.background = "rgba(239,68,68,0.1)" }}
+                      onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent" }}
                       title="Delete"
                     >
-                      🗑️
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                   </div>
                 </>
@@ -620,42 +643,28 @@ export default function Home() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
-                background: "#FFFFFF",
-                border: "1px solid rgba(0,0,0,0.1)",
+                gap: 8,
+                background: "#00A3E0",
+                border: "none",
                 borderRadius: 20,
-                padding: "4px 10px",
-                fontSize: 11,
+                padding: "8px 16px",
+                fontSize: 12,
                 fontWeight: 600,
-                color: "#4B5563",
+                color: "#FFFFFF",
                 cursor: "pointer",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                boxShadow: "0 2px 6px rgba(0,163,224,0.3)",
+                transition: "background 0.2s",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "#FFFFFF")}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#008CBE")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "#00A3E0")}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
                 <line x1="5" y1="12" x2="19" y2="12"></line>
               </svg>
               New Chat
             </button>
 
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#FFFFFF",
-              background: "linear-gradient(135deg, #FA4616 0%, #00A3E0 100%)",
-              border: "none",
-              borderRadius: 20,
-              padding: "4px 12px",
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.85)", display: "inline-block" }} />
-              Online
-            </div>
           </div>
         </header>
 
