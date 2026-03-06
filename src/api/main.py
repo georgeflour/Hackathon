@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routers import upload
-from src.backend.flask_chat import chat
+from src.backend.chat import router as chat_router
 
 app = FastAPI(title="DEH Billing Agent API", version="1.0.0")
 
@@ -20,8 +20,8 @@ app.add_middleware(
 
 app.include_router(upload.router)
 
-# Include the chat endpoint from flask_chat
-app.add_api_route("/chat", chat, methods=["POST"])
+# Include the chat endpoint from backend.chat
+app.include_router(chat_router)
 
 
 @app.get("/", tags=["health"])

@@ -327,7 +327,8 @@ export default function Home() {
     setFiles([]); // clear attachment bar
 
     // 3. Process Files (Upload + Extract) if needed
-    if (pendingFiles.length > 0 && !currentExtracted) {
+    const isExplicitUpload = files.length > 0;
+    if (isExplicitUpload || (pendingFiles.length > 0 && !currentExtracted)) {
       const ext = await processFiles(pendingFiles);
       if (!ext) {
         setIsTyping(false);
@@ -346,12 +347,12 @@ export default function Home() {
         setIsTyping(true);
         try {
           const currentMatch = matchResult || {};
-          // Import explainBill from api.ts implicitly or via the existing import
-          // Wait, explainBill needs to be imported! 
-          // Let's check imports at the top and add it if missing!
-          const { explainBill } = await import("@/lib/api");
+          // Import and run chatWithAssistant instead of the older endpoint
+          const { chatWithAssistant } = await import("@/lib/api");
 
-          const explanation = await explainBill(currentExtracted, currentMatch, q, { signal: abortControllerRef.current.signal });
+          // You ideally would pass RAG context or SQL context here,
+          // but for now we simply pass the question forwards. 
+          const explanation = await chatWithAssistant(q, "", "", { signal: abortControllerRef.current.signal });
           const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
           updateMsg(typingId, {
             content: textAnswer,

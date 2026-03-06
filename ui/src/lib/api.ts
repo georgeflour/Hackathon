@@ -45,11 +45,13 @@ export async function explainBill(
 export async function chatWithAssistant(
   question: string,
   ragContext: string = "",
-  sqlContext: string = ""
+  sqlContext: string = "",
+  init?: RequestInit
 ): Promise<Record<string, unknown>> {
   return apiFetch("/chat", {
+    ...init,
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...init?.headers },
     body: JSON.stringify({
       question,
       rag_context: ragContext,
