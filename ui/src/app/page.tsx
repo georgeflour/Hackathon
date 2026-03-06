@@ -549,7 +549,7 @@ export default function Home() {
       }}>
         <div style={{ padding: "16px", borderBottom: "1px solid rgba(0,0,0,0.08)", fontWeight: 600, color: "#111827", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            Previous Chats
+            Chat History
           </div>
           <button
             onClick={() => setIsSidebarOpen(false)}
