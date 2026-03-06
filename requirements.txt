@@ -36,4 +36,4 @@ torch
 transformers
 bitsandbytes
 accelerate
-
+peft

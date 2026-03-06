@@ -59,3 +59,48 @@ export async function chatWithAssistant(
     }),
   });
 }
+
+// ─── Chat History Methods ──────────────────────────────────────────────
+
+export async function getSessions(): Promise<Record<string, any>[]> {
+  const data = await apiFetch("/history/sessions");
+  return (data.sessions as Record<string, any>[]) || [];
+}
+
+export async function createSession(title: string = "New Chat"): Promise<string> {
+  const data = await apiFetch("/history/sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  return data.session_id as string;
+}
+
+export async function getSessionMessages(sessionId: string): Promise<Record<string, any>[]> {
+  const data = await apiFetch(`/history/sessions/${sessionId}/messages`);
+  return (data.messages as Record<string, any>[]) || [];
+}
+
+export async function saveMessage(sessionId: string, role: string, content: string, imageUrls?: string[]): Promise<string> {
+  const data = await apiFetch(`/history/sessions/${sessionId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role, content, image_urls: imageUrls || [] }),
+  });
+  return data.message_id as string;
+}
+
+export async function renameSession(sessionId: string, newTitle: string): Promise<void> {
+  await apiFetch(`/history/sessions/${sessionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: newTitle }),
+  });
+}
+
+export async function deleteSession(sessionId: string): Promise<void> {
+  await apiFetch(`/history/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+}
+
