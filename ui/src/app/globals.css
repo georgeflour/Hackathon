@@ -151,15 +151,20 @@ body {
     transform: rotate(90deg);
 }
 
-.plus-btn:hover {
+.plus-btn:hover,
+.mic-btn:not(.is-listening):hover {
     border-color: rgba(0, 163, 224, 0.4) !important;
     background: rgba(0, 163, 224, 0.06) !important;
 }
 
-.plus-btn .plus-icon path {
+.plus-btn .plus-icon path,
+.mic-btn .mic-icon path,
+.mic-btn .mic-icon line {
     transition: stroke 0.2s ease;
 }
 
-.plus-btn:hover .plus-icon path {
-    stroke: #00A3E0;
+.plus-btn:hover .plus-icon path,
+.mic-btn:not(.is-listening):hover .mic-icon path,
+.mic-btn:not(.is-listening):hover .mic-icon line {
+    stroke: #00A3E0 !important;
 }

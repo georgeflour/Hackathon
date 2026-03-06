@@ -228,6 +228,50 @@ export default function Home() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editSessionTitle, setEditSessionTitle] = useState("");
 
+  // Voice Recording State
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const originalInputRef = useRef<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "el-GR";
+
+        recognition.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((res: any) => res[0].transcript)
+            .join('');
+
+          const prefix = originalInputRef.current ? originalInputRef.current + " " : "";
+          setInput(prefix + transcript);
+        };
+
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognitionRef.current = recognition;
+      }
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      originalInputRef.current = input;
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -548,10 +592,32 @@ export default function Home() {
                     style={{ flex: 1, background: "#fff", border: "1px solid #00A3E0", borderRadius: 4, padding: "4px 8px", fontSize: 13, outline: "none", boxShadow: "0 0 0 2px rgba(0, 163, 224, 0.2)" }}
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <button type="submit" style={{ background: "#10B981", border: "none", borderRadius: "4px", padding: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center" }} onClick={(e) => e.stopPropagation()} title="Save">
+                  <button
+                    type="submit"
+                    title="Save"
+                    style={{
+                      background: "transparent", border: "none", cursor: "pointer", color: "#10B981",
+                      padding: "4px", borderRadius: "4px", display: "flex", alignItems: "center",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = "rgba(16, 185, 129, 0.1)" }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = "transparent" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                   </button>
-                  <button type="button" style={{ background: "#EF4444", border: "none", borderRadius: "4px", padding: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center" }} onClick={(e) => { e.stopPropagation(); setEditingSessionId(null); }} title="Cancel">
+                  <button
+                    type="button"
+                    title="Cancel"
+                    style={{
+                      background: "transparent", border: "none", cursor: "pointer", color: "#EF4444",
+                      padding: "4px", borderRadius: "4px", display: "flex", alignItems: "center",
+                      transition: "all 0.2s"
+                    }}
+                    onMouseOver={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)" }}
+                    onMouseOut={(e) => { e.currentTarget.style.background = "transparent" }}
+                    onClick={(e) => { e.stopPropagation(); setEditingSessionId(null); }}
+                  >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                   </button>
                 </form>
@@ -839,6 +905,33 @@ export default function Home() {
                 </button>
 
                 <div style={{ flex: 1 }} />
+
+                {/* Mic Button */}
+                <button
+                  onClick={toggleListening}
+                  title={isListening ? "Stop listening" : "Start voice typing"}
+                  className={`mic-btn ${isListening ? "is-listening" : ""}`}
+                  style={{
+                    background: isListening ? "rgba(239, 68, 68, 0.1)" : "none",
+                    border: isListening ? "1px solid rgba(239, 68, 68, 0.3)" : "1px solid rgba(0,0,0,0.1)",
+                    borderRadius: "50%",
+                    width: 36,
+                    height: 36,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition: "background 0.2s, border-color 0.2s",
+                    marginRight: 8,
+                  }}
+                >
+                  <svg className="mic-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isListening ? "#EF4444" : "#6B7280"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                  </svg>
+                </button>
 
                 {/* Send / Stop */}
                 {isTyping ? (
