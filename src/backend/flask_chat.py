@@ -1,30 +1,19 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 import torch
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-)
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-MODEL_ID = "Qwen/Qwen2.5-7B-Instruct"
+# MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
+MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
 
 router = APIRouter()
-
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_compute_dtype=torch.bfloat16,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_use_double_quant=True,
-)
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
+    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
     device_map="auto",
-    torch_dtype=torch.bfloat16,
-    quantization_config=bnb_config,
 )
 
 SYSTEM_PROMPT = """
@@ -74,9 +63,8 @@ def chat(req: ChatRequest):
     with torch.no_grad():
         outputs = model.generate(
             inputs,
-            max_new_tokens=400,
+            max_new_tokens=200,
             do_sample=False,
-            temperature=0.0,
             pad_token_id=tokenizer.eos_token_id,
         )
 
