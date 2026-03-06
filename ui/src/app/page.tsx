@@ -227,6 +227,17 @@ export default function Home() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  function handleRestart() {
+    setMessages([]);
+    setInput("");
+    setFiles([]);
+    setExtracted(null);
+    setMatchResult(null);
+    if (fileRef.current) {
+      fileRef.current.value = "";
+    }
+  }
+
   function addMsg(msg: Omit<Message, "id">) {
     const full: Message = { ...msg, id: uid() };
     setMessages((prev) => [...prev, full]);
@@ -356,21 +367,49 @@ export default function Home() {
             Powered by Hack to the Future
           </div>
         </div>
-        <div style={{
-          marginLeft: "auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 11,
-          fontWeight: 600,
-          color: "#FFFFFF",
-          background: "linear-gradient(135deg, #FA4616 0%, #00A3E0 100%)",
-          border: "none",
-          borderRadius: 20,
-          padding: "4px 12px",
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.85)", display: "inline-block" }} />
-          Online
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={handleRestart}
+            title="Restart Chat"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#FFFFFF",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: 20,
+              padding: "4px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#4B5563",
+              cursor: "pointer",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.02)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "#FFFFFF")}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+            Restart
+          </button>
+
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 11,
+            fontWeight: 600,
+            color: "#FFFFFF",
+            background: "linear-gradient(135deg, #FA4616 0%, #00A3E0 100%)",
+            border: "none",
+            borderRadius: 20,
+            padding: "4px 12px",
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.85)", display: "inline-block" }} />
+            Online
+          </div>
         </div>
       </header>
 
