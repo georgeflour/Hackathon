@@ -14,6 +14,7 @@ interface Message {
   // optional structured payload after agent runs
   stage?: "upload" | "match" | "answer";
   payload?: Record<string, unknown>;
+  attachments?: File[];
 }
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
@@ -222,6 +223,7 @@ export default function Home() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -233,9 +235,11 @@ export default function Home() {
     setFiles([]);
     setExtracted(null);
     setMatchResult(null);
+    setIsTyping(false);
     if (fileRef.current) {
       fileRef.current.value = "";
     }
+    abortControllerRef.current?.abort();
   }
 
   function addMsg(msg: Omit<Message, "id">) {
@@ -248,6 +252,10 @@ export default function Home() {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }
 
+  function removeMsg(id: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+  }
+
   /* ── attach file (no processing yet) ── */
   function handleFileChosen(chosen: File) {
     setFiles((prev) => [...prev, chosen]);
@@ -258,8 +266,10 @@ export default function Home() {
     const typingId = addMsg({ role: "assistant", content: "…" });
     setIsTyping(true);
 
+    abortControllerRef.current = new AbortController();
+
     try {
-      const ext = await uploadBill(pending);
+      const ext = await uploadBill(pending, { signal: abortControllerRef.current.signal });
       setExtracted(ext);
       updateMsg(typingId, {
         content: "I analysed your bill. Here are the extracted details:",
@@ -267,8 +277,12 @@ export default function Home() {
         payload: ext,
       });
       return ext;
-    } catch (e) {
-      updateMsg(typingId, { content: `❌ ${String(e)}` });
+    } catch (e: any) {
+      if (e.name === "AbortError") {
+        removeMsg(typingId);
+      } else {
+        updateMsg(typingId, { content: `❌ ${String(e)}` });
+      }
       return null;
     } finally {
       setIsTyping(false);
@@ -278,48 +292,94 @@ export default function Home() {
   /* ── send: handles files + optional question ── */
   async function handleSend() {
     const q = input.trim();
-    const hasPendingFiles = files.length > 0;
     const hasQuestion = q.length > 0;
+    let pendingFiles = files;
 
-    if (!hasPendingFiles && !hasQuestion) return;
+    let currentExtracted = extracted;
+
+    // 1. Recover files if we have no files, no extracted data, but a previous upload was aborted.
+    if (pendingFiles.length === 0 && !currentExtracted) {
+      // Look back for the last user message to see if it had attachments
+      const lastUserMsg = messages.slice().reverse().find(m => m.role === "user");
+      if (lastUserMsg?.attachments?.length) {
+        pendingFiles = lastUserMsg.attachments;
+      }
+    }
+
+    if (pendingFiles.length === 0 && !hasQuestion) return;
 
     setInput("");
     setIsTyping(true);
 
-    // Compose a single user bubble combining files + text
+    // 2. Add user message
     const imageFiles = files.filter((f) => f.type.startsWith("image/"));
     const nonImageFiles = files.filter((f) => !f.type.startsWith("image/"));
     const imageUrls = imageFiles.map((f) => URL.createObjectURL(f));
     const nonImageNames = nonImageFiles.length > 0 ? `📎 ${nonImageFiles.map((f) => f.name).join(", ")}` : "";
     const userContent = [nonImageNames, hasQuestion ? q : ""].filter(Boolean).join("\n");
-    addMsg({ role: "user", content: userContent, imageUrls: imageUrls.length > 0 ? imageUrls : undefined });
-    setFiles([]); // clear attachment bar immediately
 
-    let currentExtracted = extracted;
+    addMsg({
+      role: "user",
+      content: userContent,
+      imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+      attachments: files.length > 0 ? files : undefined
+    });
+    setFiles([]); // clear attachment bar
 
-    // Step 1: upload + extract
-    if (hasPendingFiles) {
-      const ext = await processFiles(files);
+    // 3. Process Files (Upload + Extract) if needed
+    if (pendingFiles.length > 0 && !currentExtracted) {
+      const ext = await processFiles(pendingFiles);
       if (!ext) {
         setIsTyping(false);
         return;
       }
       currentExtracted = ext;
-      if (!hasQuestion) {
-        addMsg({
-          role: "assistant",
-          content: "You can now ask me anything about your bill, e.g. \"Why is my bill higher than usual?\"",
-        });
-        setIsTyping(false);
-        return;
-      }
     }
 
-    // Question-only (no files) — not yet supported
-    if (hasQuestion && !hasPendingFiles) {
-      addMsg({ role: "assistant", content: "Please upload your bill first." });
-      setIsTyping(false);
+    // 4. Handle Questions
+    if (hasQuestion) {
+      if (!currentExtracted) {
+        addMsg({ role: "assistant", content: "Please upload your bill first." });
+      } else {
+        abortControllerRef.current = new AbortController();
+        const typingId = addMsg({ role: "assistant", content: "…" });
+        setIsTyping(true);
+        try {
+          const currentMatch = matchResult || {};
+          // Import explainBill from api.ts implicitly or via the existing import
+          // Wait, explainBill needs to be imported! 
+          // Let's check imports at the top and add it if missing!
+          const { explainBill } = await import("@/lib/api");
+
+          const explanation = await explainBill(currentExtracted, currentMatch, q, { signal: abortControllerRef.current.signal });
+          const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
+          updateMsg(typingId, {
+            content: textAnswer,
+            stage: "answer",
+            payload: explanation
+          });
+        } catch (e: any) {
+          if (e.name === "AbortError") {
+            removeMsg(typingId);
+          } else {
+            updateMsg(typingId, { content: `Assistant is not fully wired up for questions yet, but I received: "${q}"\n\n(Error: ${String(e)})` });
+          }
+        }
+      }
+    } else if (pendingFiles.length > 0) {
+      // Just uploaded files, no question
+      addMsg({
+        role: "assistant",
+        content: "You can now ask me anything about your bill, e.g. \"Why is my bill higher than usual?\"",
+      });
     }
+
+    setIsTyping(false);
+  }
+
+  function handleStop() {
+    abortControllerRef.current?.abort();
+    setIsTyping(false);
   }
 
   function handleKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -566,46 +626,70 @@ export default function Home() {
 
             <div style={{ flex: 1 }} />
 
-            {/* Send */}
-            <button
-              onClick={handleSend}
-              disabled={(files.length === 0 && !input.trim()) || isTyping}
-              style={{
-                background: (input.trim() || files.length > 0) && !isTyping
-                  ? "linear-gradient(135deg, #00A3E0 0%, #e8f7fd 100%)"
-                  : "rgba(0,0,0,0.05)",
-                border: "none",
-                borderRadius: 10,
-                width: 36,
-                height: 36,
-                cursor: (input.trim() || files.length > 0) && !isTyping ? "pointer" : "not-allowed",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-                transition: "background 0.25s",
-              }}
-              onMouseDown={(e) => { if ((input.trim() || files.length > 0) && !isTyping) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
-              onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className={(input.trim() || files.length > 0) && !isTyping ? "arrow-up" : "arrow-right"}
-                style={{ display: "block" }}
+            {/* Send / Stop */}
+            {isTyping ? (
+              <button
+                onClick={handleStop}
+                title="Stop generation"
+                style={{
+                  background: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)",
+                  border: "none",
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "background 0.25s",
+                }}
+                onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
+                onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
               >
-                <path
-                  d="M3 8L13 8M13 8L8.5 3.5M13 8L8.5 12.5"
-                  stroke={input.trim() && !isTyping ? "#0077a8" : "#9CA3AF"}
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+                <div style={{ width: 12, height: 12, background: "#FFFFFF", borderRadius: 2 }} />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={files.length === 0 && !input.trim()}
+                style={{
+                  background: (input.trim() || files.length > 0)
+                    ? "linear-gradient(135deg, #00A3E0 0%, #e8f7fd 100%)"
+                    : "rgba(0,0,0,0.05)",
+                  border: "none",
+                  borderRadius: 10,
+                  width: 36,
+                  height: 36,
+                  cursor: (input.trim() || files.length > 0) ? "pointer" : "not-allowed",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  transition: "background 0.25s",
+                }}
+                onMouseDown={(e) => { if (input.trim() || files.length > 0) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
+                onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={input.trim() || files.length > 0 ? "arrow-up" : "arrow-right"}
+                  style={{ display: "block" }}
+                >
+                  <path
+                    d="M3 8L13 8M13 8L8.5 3.5M13 8L8.5 12.5"
+                    stroke={input.trim() ? "#0077a8" : "#9CA3AF"}
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 

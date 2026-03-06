@@ -7,29 +7,33 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Record<string
   }
   return res.json();
 }
-export async function uploadBill(files: File[]): Promise<Record<string, unknown>> {
+export async function uploadBill(files: File[], init?: RequestInit): Promise<Record<string, unknown>> {
   const form = new FormData();
   form.append("file_front", files[0]);
   if (files[1]) form.append("file_back", files[1]);
-  return apiFetch("/upload", { method: "POST", body: form });
+  return apiFetch("/upload", { ...init, method: "POST", body: form });
 }
 export async function matchBill(
-  extracted: Record<string, unknown>
+  extracted: Record<string, unknown>,
+  init?: RequestInit
 ): Promise<Record<string, unknown>> {
   return apiFetch("/match", {
+    ...init,
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...init?.headers },
     body: JSON.stringify({ extracted }),
   });
 }
 export async function explainBill(
   extracted: Record<string, unknown>,
   matchResult: Record<string, unknown>,
-  question: string
+  question: string,
+  init?: RequestInit
 ): Promise<Record<string, unknown>> {
   return apiFetch("/explain", {
+    ...init,
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...init?.headers },
     body: JSON.stringify({
       extracted,
       match_result: matchResult,
