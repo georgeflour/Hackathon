@@ -32,7 +32,7 @@ peft_config = LoraConfig(
 
 model = get_peft_model(model, peft_config)
 
-dataset = load_dataset("json", data_files={"train": "train.jsonl"})
+dataset = load_dataset("text", data_files={"train": "data/train.txt"})
 
 def format_example(example):
     text = tokenizer.apply_chat_template(
