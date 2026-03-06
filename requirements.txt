@@ -1,5 +1,6 @@
 # Web framework
 fastapi
+flask
 uvicorn[standard]
 python-multipart
 
@@ -29,4 +30,10 @@ sentence-transformers>=3.0
 # Testing
 pytest
 requests
+
+# Additional libraries for FastAPI and Flask applications
+torch
+transformers
+bitsandbytes
+accelerate
 

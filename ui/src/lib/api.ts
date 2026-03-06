@@ -38,3 +38,18 @@ export async function explainBill(
     }),
   });
 }
+export async function chatWithAssistant(
+  question: string,
+  ragContext: string = "",
+  sqlContext: string = ""
+): Promise<Record<string, unknown>> {
+  return apiFetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      rag_context: ragContext,
+      sql_context: sqlContext,
+    }),
+  });
+}
