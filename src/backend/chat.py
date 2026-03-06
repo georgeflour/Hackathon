@@ -1,8 +1,42 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-import asyncio
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from peft import PeftModel
+
+BASE_MODEL_ID = "Qwen/Qwen2.5-3B-Instruct"
+ADAPTER_PATH = "./qwen-billing-lora"
 
 router = APIRouter()
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_use_double_quant=True,
+)
+
+tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_ID)
+
+base_model = AutoModelForCausalLM.from_pretrained(
+    BASE_MODEL_ID,
+    device_map="auto",
+    torch_dtype=torch.bfloat16,
+    quantization_config=bnb_config,
+)
+
+model = PeftModel.from_pretrained(
+    base_model,
+    ADAPTER_PATH,
+)
+
+SYSTEM_PROMPT = """
+Είσαι βοηθός εξυπηρέτησης πελατών λογαριασμών ενέργειας.
+Απαντάς πάντα στα ελληνικά.
+Χρησιμοποιείς μόνο τα παρεχόμενα facts από SQL και RAG.
+Αν δεν υπάρχουν αρκετά στοιχεία, το λες καθαρά.
+Δεν επινοείς αριθμούς, χρεώσεις, ημερομηνίες ή πολιτικές.
+"""
 
 class ChatRequest(BaseModel):
     question: str
@@ -10,21 +44,46 @@ class ChatRequest(BaseModel):
     sql_context: str = ""
 
 @router.post("/chat")
-async def chat(req: ChatRequest):
-    # Simulate a small network delay
-    await asyncio.sleep(1.5)
-    
-    # Check what kind of data came through
-    has_sql = bool(req.sql_context)
-    has_rag = bool(req.rag_context)
-    
-    mock_reply = (
-        f"✅ **Mock Backend Response Successful**!\n\n"
-        f"Το ερώτημα που έφτασε στο Backend ήταν:\n"
-        f"> *\"{req.question}\"*\n\n"
-        f"**Συνοδευτικά δεδομένα**:\n"
-        f"- SQL Context Present: {'Ναι' if has_sql else 'Όχι'}\n"
-        f"- RAG Context Present: {'Ναι' if has_rag else 'Όχι'}\n"
-    )
+def chat(req: ChatRequest):
+    user_prompt = f"""
+Ερώτηση χρήστη:
+{req.question}
 
-    return {"answer": mock_reply}
+Δεδομένα από SQL:
+{req.sql_context if req.sql_context else "Δεν υπάρχουν."}
+
+Δεδομένα από knowledge base:
+{req.rag_context if req.rag_context else "Δεν υπάρχουν."}
+
+Οδηγίες:
+- Απάντησε στα ελληνικά.
+- Αν τα δεδομένα δεν αρκούν, ζήτησε διευκρίνιση.
+- Μη χρησιμοποιήσεις εξωτερική γνώση.
+- Δώσε σύντομη, σαφή απάντηση.
+"""
+
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    inputs = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt",
+    ).to(model.device)
+
+    with torch.no_grad():
+        outputs = model.generate(
+            inputs,
+            max_new_tokens=400,
+            do_sample=False,
+            temperature=0.0,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+
+    generated = outputs[0][inputs.shape[-1]:]
+    answer = tokenizer.decode(generated, skip_special_tokens=True)
+
+    return {"answer": answer.strip()}
