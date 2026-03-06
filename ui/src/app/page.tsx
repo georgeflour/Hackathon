@@ -158,8 +158,7 @@ function Bubble({ msg }: { msg: Message }) {
           background: isUser
             ? "linear-gradient(135deg, #c8ecf8 0%, #e8f7fd 100%)"
             : "#FFFFFF",
-          border: isUser ? "1px solid rgba(0,163,224,0.15)" : "1px solid rgba(0,0,0,0.08)",
-          boxShadow: isUser ? "0 1px 6px rgba(0,163,224,0.1)" : "0 1px 4px rgba(0,0,0,0.06)",
+          boxShadow: isUser ? "0 2px 8px rgba(0,163,224,0.12)" : "0 2px 10px rgba(0,0,0,0.05)",
           borderRadius: isUser ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
           padding: msg.imageUrls?.length ? "8px" : "10px 14px",
           lineHeight: 1.6,
@@ -695,196 +694,217 @@ export default function Home() {
           flexShrink: 0,
           padding: "12px 16px 20px",
           background: "var(--bg-main)",
-          borderTop: "1px solid rgba(0,0,0,0.07)",
+          position: "relative",
+          zIndex: 10,
         }}>
-          <div
-            style={{
-              maxWidth: 720,
-              margin: "0 auto",
-              background: isDragging ? "rgba(0,163,224,0.05)" : "#FFFFFF",
-              border: `1px solid ${isDragging ? "rgba(0,163,224,0.4)" : "rgba(0,0,0,0.1)"}`,
-              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-              borderRadius: 16,
-              transition: "border-color 0.2s, background 0.2s",
-              overflow: "hidden",
-            }}
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={handleDrop}
-          >
-            {/* File upload bar */}
-            {files.length > 0 && (
+          {/* Wrapper for Glow + Input */}
+          <div style={{ position: "relative", maxWidth: 720, margin: "0 auto" }}>
+
+            {/* Ambient Background Glow */}
+            <div style={{
+              position: "absolute",
+              inset: -14,
+              background: "linear-gradient(135deg, rgba(0,163,224,0.55) 0%, rgba(250,70,22,0.45) 100%)",
+              filter: "blur(28px)",
+              borderRadius: 32,
+              opacity: isDragging ? 0.9 : 0.7,
+              transition: "opacity 0.3s ease",
+              pointerEvents: "none",
+              zIndex: 0,
+            }} />
+
+            {/* Actual Input Container */}
+            <div
+              style={{
+                position: "relative",
+                zIndex: 1,
+                width: "100%",
+                background: isDragging ? "rgba(0,163,224,0.05)" : "rgba(255,255,255,0.9)",
+                backdropFilter: "blur(8px)",
+                border: isDragging ? "1px solid rgba(0,163,224,0.4)" : "1px solid rgba(255,255,255,0.6)",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.02)",
+                borderRadius: 16,
+                transition: "border-color 0.2s, background 0.2s, box-shadow 0.2s",
+                overflow: "hidden",
+              }}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+            >
+              {/* File upload bar */}
+              {files.length > 0 && (
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 14px",
+                  borderBottom: "1px solid rgba(0,0,0,0.07)",
+                  fontSize: 12,
+                  color: "#00A3E0",
+                }}>
+                  <span></span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {files.length === 1 ? files[0].name : `${files.length} files selected`}
+                  </span>
+                  <button
+                    onClick={() => { setFiles([]); setExtracted(null); setMatchResult(null); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", fontSize: 16, lineHeight: 1, padding: "0 2px" }}
+                  >×</button>
+                </div>
+              )}
+
+              {/* Drag hint */}
+              {isDragging && (
+                <div style={{ textAlign: "center", padding: "16px", color: "#00A3E0", fontSize: 13 }}>
+                  Drop your file here…
+                </div>
+              )}
+
+              {/* Textarea */}
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(e as unknown as React.DragEvent); }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                placeholder={extracted ? "Ask a question about your bill…" : "Ask a question or drop your bill here…"}
+                rows={1}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  resize: "none",
+                  padding: "12px 14px",
+                  fontSize: 14,
+                  color: "#111827",
+                  lineHeight: 1.6,
+                  fontFamily: "inherit",
+                  overflowY: "auto",
+                  maxHeight: 120,
+                }}
+              />
+
+              {/* Toolbar */}
               <div style={{
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
-                padding: "8px 14px",
-                borderBottom: "1px solid rgba(0,0,0,0.07)",
-                fontSize: 12,
-                color: "#00A3E0",
+                padding: "0 10px 10px",
               }}>
-                <span></span>
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {files.length === 1 ? files[0].name : `${files.length} files selected`}
-                </span>
+                {/* Attach */}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  style={{ display: "none" }}
+                  onChange={(e) => { Array.from(e.target.files ?? []).forEach((f) => handleFileChosen(f)); }}
+                />
                 <button
-                  onClick={() => { setFiles([]); setExtracted(null); setMatchResult(null); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", fontSize: 16, lineHeight: 1, padding: "0 2px" }}
-                >×</button>
-              </div>
-            )}
-
-            {/* Drag hint */}
-            {isDragging && (
-              <div style={{ textAlign: "center", padding: "16px", color: "#00A3E0", fontSize: 13 }}>
-                Drop your file here…
-              </div>
-            )}
-
-            {/* Textarea */}
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleDrop(e as unknown as React.DragEvent); }}
-              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
-              placeholder={extracted ? "Ask a question about your bill…" : "Ask a question or drop your bill here…"}
-              rows={1}
-              style={{
-                display: "block",
-                width: "100%",
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                resize: "none",
-                padding: "12px 14px",
-                fontSize: 14,
-                color: "#111827",
-                lineHeight: 1.6,
-                fontFamily: "inherit",
-                overflowY: "auto",
-                maxHeight: 120,
-              }}
-            />
-
-            {/* Toolbar */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "0 10px 10px",
-            }}>
-              {/* Attach */}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*,application/pdf"
-                multiple
-                style={{ display: "none" }}
-                onChange={(e) => { Array.from(e.target.files ?? []).forEach((f) => handleFileChosen(f)); }}
-              />
-              <button
-                onClick={() => fileRef.current?.click()}
-                title="Upload bill"
-                className="plus-btn"
-                style={{
-                  background: "none",
-                  border: "1px solid rgba(0,0,0,0.1)",
-                  borderRadius: "50%",
-                  width: 34,
-                  height: 34,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  transition: "border-color 0.2s, background 0.2s",
-                }}
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="plus-icon"
-                >
-                  <path
-                    d="M7 1V13M1 7H13"
-                    stroke="#6B7280"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-
-              <div style={{ flex: 1 }} />
-
-              {/* Send / Stop */}
-              {isTyping ? (
-                <button
-                  onClick={handleStop}
-                  title="Stop generation"
+                  onClick={() => fileRef.current?.click()}
+                  title="Upload bill"
+                  className="plus-btn"
                   style={{
-                    background: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)",
-                    border: "none",
-                    borderRadius: 10,
-                    width: 36,
-                    height: 36,
+                    background: "none",
+                    border: "1px solid rgba(0,0,0,0.1)",
+                    borderRadius: "50%",
+                    width: 34,
+                    height: 34,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     flexShrink: 0,
-                    transition: "background 0.25s",
+                    transition: "border-color 0.2s, background 0.2s",
                   }}
-                  onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
-                  onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
-                >
-                  <div style={{ width: 12, height: 12, background: "#FFFFFF", borderRadius: 2 }} />
-                </button>
-              ) : (
-                <button
-                  onClick={handleSend}
-                  disabled={files.length === 0 && !input.trim()}
-                  style={{
-                    background: (input.trim() || files.length > 0)
-                      ? "linear-gradient(135deg, #00A3E0 0%, #e8f7fd 100%)"
-                      : "rgba(0,0,0,0.05)",
-                    border: "none",
-                    borderRadius: 10,
-                    width: 36,
-                    height: 36,
-                    cursor: (input.trim() || files.length > 0) ? "pointer" : "not-allowed",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    transition: "background 0.25s",
-                  }}
-                  onMouseDown={(e) => { if (input.trim() || files.length > 0) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
-                  onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
                 >
                   <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 14 14"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
-                    className={input.trim() || files.length > 0 ? "arrow-up" : "arrow-right"}
-                    style={{ display: "block" }}
+                    className="plus-icon"
                   >
                     <path
-                      d="M3 8L13 8M13 8L8.5 3.5M13 8L8.5 12.5"
-                      stroke={input.trim() ? "#0077a8" : "#9CA3AF"}
+                      d="M7 1V13M1 7H13"
+                      stroke="#6B7280"
                       strokeWidth="1.8"
                       strokeLinecap="round"
-                      strokeLinejoin="round"
                     />
                   </svg>
                 </button>
-              )}
+
+                <div style={{ flex: 1 }} />
+
+                {/* Send / Stop */}
+                {isTyping ? (
+                  <button
+                    onClick={handleStop}
+                    title="Stop generation"
+                    style={{
+                      background: "linear-gradient(135deg, #EF4444 0%, #DC2626 100%)",
+                      border: "none",
+                      borderRadius: 10,
+                      width: 36,
+                      height: 36,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition: "background 0.25s",
+                    }}
+                    onMouseDown={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
+                    onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+                  >
+                    <div style={{ width: 12, height: 12, background: "#FFFFFF", borderRadius: 2 }} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSend}
+                    disabled={files.length === 0 && !input.trim()}
+                    style={{
+                      background: (input.trim() || files.length > 0)
+                        ? "linear-gradient(135deg, #00A3E0 0%, #e8f7fd 100%)"
+                        : "rgba(0,0,0,0.05)",
+                      border: "none",
+                      borderRadius: 10,
+                      width: 36,
+                      height: 36,
+                      cursor: (input.trim() || files.length > 0) ? "pointer" : "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition: "background 0.25s",
+                    }}
+                    onMouseDown={(e) => { if (input.trim() || files.length > 0) (e.currentTarget as HTMLButtonElement).style.transform = "scale(0.93)"; }}
+                    onMouseUp={(e) => { (e.currentTarget as HTMLButtonElement).style.transform = ""; }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      className={input.trim() || files.length > 0 ? "arrow-up" : "arrow-right"}
+                      style={{ display: "block" }}
+                    >
+                      <path
+                        d="M3 8L13 8M13 8L8.5 3.5M13 8L8.5 12.5"
+                        stroke={input.trim() ? "#0077a8" : "#9CA3AF"}
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
