@@ -17,3 +17,4 @@ __pycache__/
 *.pyc
 *.jpg # optional: ignore test images too
 venv
+*.db
