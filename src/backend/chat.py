@@ -70,6 +70,7 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
       2️⃣ Bills.Arxikos_Paroxis
 
     Returns ALL bills of the same customer.
+    If no data found, returns the identifiers for persistence.
     """
 
     logger.info("────────────────────────────────────────────────────────────")
@@ -122,7 +123,7 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
                 logger.warning("⚠️ No bill found for SupplyNumber=%s", supply_number)
 
         # ---------------------------------------------------------
-        # 3️⃣ If still nothing → exit
+        # 3️⃣ If still nothing → return identifiers for persistence
         # ---------------------------------------------------------
         if not bill_row:
             logger.error(
@@ -131,7 +132,20 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
                 supply_number
             )
             conn.close()
-            return ""
+            
+            # Επιστροφή των identifiers για να κρατηθούν
+            result = {
+                "customer": None,
+                "bills": [],
+                "bills_count": 0,
+                "identifiers": {
+                    "account_number": account_number,
+                    "supply_number": supply_number
+                },
+                "not_found": True
+            }
+            logger.info("💾 Returning identifiers for persistence")
+            return json.dumps(result, ensure_ascii=False, indent=2)
 
         arxikos = bill_row["Arxikos_Paroxis"]
 
@@ -183,12 +197,17 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
         conn.close()
 
         # ---------------------------------------------------------
-        # 6️⃣ Build JSON for LLM
+        # 6️⃣ Build JSON for LLM (με τα identifiers)
         # ---------------------------------------------------------
         result = {
             "customer": dict(customer) if customer else None,
             "bills": [dict(b) for b in bills],
-            "bills_count": len(bills)
+            "bills_count": len(bills),
+            "identifiers": {
+                "account_number": account_number if account_number else bill_row.get("AccountNumber"),
+                "supply_number": supply_number if supply_number else arxikos
+            },
+            "not_found": False
         }
 
         logger.info("📊 Final SQL context prepared")
@@ -199,7 +218,19 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
 
     except Exception as e:
         logger.error("❌ SQLite DB Error: %s", e, exc_info=True)
-        return f"Σφάλμα ανάκτησης δεδομένων από τη βάση: {str(e)}"
+        # Ακόμα και σε σφάλμα, επιστρέφουμε τα identifiers
+        result = {
+            "customer": None,
+            "bills": [],
+            "bills_count": 0,
+            "identifiers": {
+                "account_number": account_number,
+                "supply_number": supply_number
+            },
+            "error": str(e),
+            "not_found": True
+        }
+        return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 # ── Fallback lookup: by name fragment in question text ────────
@@ -236,6 +267,142 @@ def get_sql_context_by_name(question: str) -> str:
     return ""
 
 
+# ── OCR Fallback: Extract data from uploaded bill images ─────
+def get_ocr_fallback_data(supply_number: str | None, account_number: str | None, uploaded_files: list = None) -> dict | None:
+    """
+    Fallback: Use extractData.py to extract bill data from uploaded images.
+    If uploaded_files is empty, searches in the uploads directory.
+    """
+    
+    # Auto-detect uploaded files if not provided
+    if not uploaded_files:
+        logger.info("🔍 No uploaded_files provided - searching uploads directory")
+        uploads_dir = Path(__file__).parent.parent.parent / "data" / "uploads"
+        
+        # Also check common upload locations
+        alternative_paths = [
+            uploads_dir,
+            Path(__file__).parent.parent / "uploads",
+            Path(__file__).parent.parent.parent / "uploads",
+            Path("/tmp/uploads"),
+        ]
+        
+        uploaded_files = []
+        for upload_path in alternative_paths:
+            if upload_path.exists() and upload_path.is_dir():
+                logger.info("📁 Found uploads directory: %s", upload_path)
+                # Get image files (jpg, jpeg, png, pdf)
+                for ext in ['*.jpg', '*.jpeg', '*.png', '*.pdf', '*.JPG', '*.JPEG', '*.PNG', '*.PDF']:
+                    uploaded_files.extend(str(f) for f in upload_path.glob(ext))
+                if uploaded_files:
+                    logger.info("✅ Found %d image files in %s", len(uploaded_files), upload_path)
+                    break
+        
+        if not uploaded_files:
+            logger.warning("⚠️  No uploaded files found in any upload directory")
+            return None
+    
+    logger.info("🔍 Attempting OCR extraction from %d files", len(uploaded_files))
+    
+    try:
+        # Import the extraction module
+        from src.ocr import extractData
+        
+        for file_path in uploaded_files:
+            file_path_obj = Path(file_path)
+            if not file_path_obj.exists():
+                logger.warning("⚠️  File not found: %s", file_path)
+                continue
+            
+            # Skip non-image files
+            if file_path_obj.suffix.lower() not in ['.jpg', '.jpeg', '.png', '.pdf']:
+                logger.debug("⏭️  Skipping non-image file: %s", file_path)
+                continue
+            
+            logger.info("📄 Processing file: %s", file_path_obj.name)
+            
+            try:
+                # Get OCR lines from the image
+                ocr_lines = extractData.get_ocr_lines(str(file_path), debug=False)
+                
+                # Parse front page (main bill data)
+                front_data = extractData.parse_front_new(ocr_lines)
+                
+                # Check if this bill matches our identifiers
+                ocr_supply = front_data.get("supply_number")
+                ocr_account = front_data.get("account_number")
+                
+                match = False
+                match_reason = ""
+                
+                if account_number and ocr_account == account_number:
+                    match = True
+                    match_reason = f"account_number match: {account_number}"
+                    logger.info("✅ OCR match by account_number: %s", account_number)
+                elif supply_number and ocr_supply == supply_number:
+                    match = True
+                    match_reason = f"supply_number match: {supply_number}"
+                    logger.info("✅ OCR match by supply_number: %s", supply_number)
+                elif not account_number and not supply_number:
+                    # If no identifiers provided, use the first valid extraction
+                    if ocr_supply or ocr_account:
+                        match = True
+                        match_reason = "first valid extraction (no identifiers to match)"
+                        logger.info("✅ OCR extraction successful (no identifiers to match)")
+                
+                if match:
+                    logger.info("🎯 Match found! Reason: %s", match_reason)
+                    
+                    # Calculate confidence metrics
+                    metrics = extractData.calculate_confidence_metrics(front_data, ocr_lines)
+                    
+                    # Return extracted data in our format
+                    return {
+                        "source": "OCR_EXTRACTION",
+                        "file": file_path_obj.name,
+                        "match_reason": match_reason,
+                        "supply_number": ocr_supply,
+                        "account_number": ocr_account,
+                        "customer_address": front_data.get("customer_address"),
+                        "invoice_total_eur": front_data.get("invoice_total_eur"),
+                        "invoice_due_date": front_data.get("invoice_due_date"),
+                        "service_period_start": front_data.get("service_period_start"),
+                        "service_period_end": front_data.get("service_period_end"),
+                        "kwh_consumed": front_data.get("kwh_consumed"),
+                        "tariff_type": front_data.get("tariff_type"),
+                        "tariff_status": front_data.get("tariff_status"),
+                        "bill_type": front_data.get("bill_type"),
+                        "supply_charges_eur": front_data.get("supply_charges_eur"),
+                        "regulated_charges_eur": front_data.get("regulated_charges_eur"),
+                        "opposite_consumption_eur": front_data.get("opposite_consumption_eur"),
+                        "misc_charges_eur": front_data.get("misc_charges_eur"),
+                        "vat_eur": front_data.get("vat_eur"),
+                        "previous_unpaid_eur": front_data.get("previous_unpaid_eur"),
+                        "payment_reference": front_data.get("payment_reference"),
+                        "issue_date": front_data.get("issue_date"),
+                        "next_meter_read_date": front_data.get("next_meter_read_date"),
+                        "billing_days": front_data.get("billing_days"),
+                        "confidence_metrics": metrics,
+                        "raw_ocr_data": front_data
+                    }
+                else:
+                    logger.debug("⏭️  No match - OCR found: supply=%s, account=%s", ocr_supply, ocr_account)
+                    
+            except Exception as e:
+                logger.error("❌ OCR extraction failed for %s: %s", file_path, e, exc_info=True)
+                continue
+        
+        logger.warning("⚠️  No matching bill found in uploaded files")
+        return None
+        
+    except ImportError as e:
+        logger.error("❌ Could not import extractData module: %s", e)
+        return None
+    except Exception as e:
+        logger.error("❌ OCR fallback error: %s", e, exc_info=True)
+        return None
+
+
 # ── System prompt ──────────────────────────────────────────────
 SYSTEM_PROMPT = """
 Είσαι βοηθός εξυπηρέτησης πελατών λογαριασμών ενέργειας.
@@ -253,6 +420,7 @@ class ChatRequest(BaseModel):
     sql_context: str = ""
     supply_number: str | None = None    # → Bills.Arxikos_Paroxis (fallback)
     account_number: str | None = None   # → Bills.AccountNumber  (primary)
+    uploaded_files: list[str] = []      # → Paths to uploaded bill images for OCR fallback
 
 
 # ── Endpoint ───────────────────────────────────────────────────
@@ -309,10 +477,57 @@ def chat(req: ChatRequest):
     elif req.account_number or req.supply_number:
         logger.info("ℹ️  Looking up by AccountNumber=%r / Arxikos_Paroxis=%r", req.account_number, req.supply_number)
         sql_data = get_sql_context(req.supply_number, req.account_number)
+        
+        # ── Check if DB lookup failed and try OCR fallback ────
+        if sql_data:
+            try:
+                sql_result = json.loads(sql_data)
+                if sql_result.get("not_found") and sql_result.get("identifiers"):
+                    logger.warning("⚠️  DB lookup failed - trying OCR extraction fallback")
+                    ocr_data = get_ocr_fallback_data(
+                        sql_result["identifiers"].get("supply_number"),
+                        sql_result["identifiers"].get("account_number"),
+                        req.uploaded_files
+                    )
+                    if ocr_data:
+                        logger.info("✅ OCR fallback data found - merging with identifiers")
+                        sql_result["ocr_fallback"] = ocr_data
+                        sql_result["data_source"] = "OCR_EXTRACTION"
+                        # Update identifiers with OCR data if they were missing
+                        if not sql_result["identifiers"].get("supply_number"):
+                            sql_result["identifiers"]["supply_number"] = ocr_data.get("supply_number")
+                        if not sql_result["identifiers"].get("account_number"):
+                            sql_result["identifiers"]["account_number"] = ocr_data.get("account_number")
+                        sql_data = json.dumps(sql_result, ensure_ascii=False, indent=2)
+            except json.JSONDecodeError:
+                logger.warning("⚠️  Could not parse sql_data as JSON")
 
     else:
-        logger.warning("⚠️  No identifiers — trying name-based fallback search in question text")
-        sql_data = get_sql_context_by_name(req.question)
+        logger.warning("⚠️  No identifiers — trying OCR extraction from uploaded files first")
+        if req.uploaded_files:
+            logger.info("📎 Found %d uploaded files - attempting OCR extraction", len(req.uploaded_files))
+            ocr_data = get_ocr_fallback_data(None, None, req.uploaded_files)
+            if ocr_data:
+                logger.info("✅ OCR extraction successful")
+                sql_result = {
+                    "customer": None,
+                    "bills": [],
+                    "bills_count": 0,
+                    "identifiers": {
+                        "account_number": ocr_data.get("account_number"),
+                        "supply_number": ocr_data.get("supply_number")
+                    },
+                    "ocr_fallback": ocr_data,
+                    "data_source": "OCR_EXTRACTION",
+                    "not_found": False
+                }
+                sql_data = json.dumps(sql_result, ensure_ascii=False, indent=2)
+            else:
+                logger.warning("⚠️  OCR extraction failed - trying name-based search")
+                sql_data = get_sql_context_by_name(req.question)
+        else:
+            logger.warning("⚠️  No uploaded files - trying name-based fallback search in question text")
+            sql_data = get_sql_context_by_name(req.question)
 
     logger.info("─" * 60)
     logger.info("📄 sql_data injected into prompt:")
@@ -345,4 +560,3 @@ def chat(req: ChatRequest):
         "answer": answer.strip(),
         "metrics": metrics
     }
-
