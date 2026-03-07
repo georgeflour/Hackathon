@@ -223,6 +223,8 @@ export default function Home() {
   const [sessions, setSessions] = useState<{ id: string; title: string; created_at: string }[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [isResizing, setIsResizing] = useState(false);
 
   // History Edit State
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -277,6 +279,30 @@ export default function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      let newWidth = e.clientX;
+      if (newWidth < 200) newWidth = 200; // min width
+      if (newWidth > 600) newWidth = 600; // max width
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.userSelect = "auto";
+    };
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.userSelect = "none"; // prevent text selection while dragging
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.userSelect = "auto";
+    };
+  }, [isResizing]);
 
   useEffect(() => {
     import("@/lib/api").then((api) => {
@@ -540,13 +566,32 @@ export default function Home() {
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "#F9FAFB" }}>
       {/* ── Sidebar ── */}
       <div style={{
-        width: 260,
+        width: sidebarWidth,
+        flexShrink: 0,
         background: "#FFFFFF",
         borderRight: "1px solid rgba(0,0,0,0.08)",
         display: isSidebarOpen ? "flex" : "none",
         flexDirection: "column",
+        position: "relative",
         zIndex: 20,
       }}>
+        {/* Resizer handle */}
+        <div
+          onMouseDown={() => setIsResizing(true)}
+          style={{
+            position: "absolute",
+            top: 0,
+            right: -3,
+            width: 6,
+            height: "100%",
+            cursor: "col-resize",
+            zIndex: 30,
+            background: isResizing ? "rgba(0,163,224,0.5)" : "transparent",
+            transition: "background 0.2s",
+          }}
+          onMouseOver={(e) => { e.currentTarget.style.background = "rgba(0,163,224,0.3)"; }}
+          onMouseOut={(e) => { e.currentTarget.style.background = isResizing ? "rgba(0,163,224,0.5)" : "transparent"; }}
+        />
         <div style={{ padding: "16px", borderBottom: "1px solid rgba(0,0,0,0.08)", fontWeight: 600, color: "#111827", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             Chat History
