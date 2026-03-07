@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="031ba142-04a8-4adb-9c4e-13c9fefbc1d5" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/data/chat_history.db" beforeDir="false" afterPath="$PROJECT_DIR$/data/chat_history.db" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/src/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/ui/src/app/page.tsx" afterDir="false" />
-    </list>
+    <list default="true" id="031ba142-04a8-4adb-9c4e-13c9fefbc1d5" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -192,7 +189,7 @@
       <updated>1772381250880</updated>
       <workItem from="1772381252353" duration="12398000" />
       <workItem from="1772877111807" duration="1561000" />
-      <workItem from="1772878683187" duration="8457000" />
+      <workItem from="1772878683187" duration="8649000" />
     </task>
     <servers />
   </component>
