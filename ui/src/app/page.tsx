@@ -37,13 +37,12 @@ function DEHLogo({ size = 38 }: { size?: number }) {
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "Good morning.";
-  if (hour >= 12 && hour < 17) return "Good afternoon.";
-  if (hour >= 17 && hour < 21) return "Good evening.";
-  return "Hello there, Night Owl!";
+  if (hour >= 5 && hour < 12) return "Good Morning!";
+  if (hour >= 12 && hour < 17) return "Good Afternoon!";
+  if (hour >= 17 && hour < 21) return "Good Evening!";
+  return "Hello Night Owl!";
 }
 
-/* ─── empty state (centered greeting) ───────────────────────────────── */
 function EmptyState() {
   return (
     <div style={{
@@ -55,22 +54,39 @@ function EmptyState() {
       gap: 12,
       padding: "0 16px",
       pointerEvents: "none",
+      userSelect: "none",
     }}>
       <div style={{
-        fontSize: 36,
-        fontWeight: 700,
-        color: "#111827",
-        letterSpacing: "-0.03em",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 48,
+        height: 48,
+        borderRadius: "50%",
+        background: "rgba(0,163,224,0.05)",
+        color: "#00A3E0",
+        marginBottom: 8,
+      }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+        </svg>
+      </div>
+      <div style={{
+        fontSize: 28,
+        fontWeight: 400,
+        color: "#374151",
+        letterSpacing: "-0.02em",
         lineHeight: 1.1,
         textAlign: "center",
       }}>
         {getGreeting()}
       </div>
       <div style={{
-        fontSize: 15,
+        fontSize: 14,
         color: "#9CA3AF",
         fontWeight: 400,
         textAlign: "center",
+        letterSpacing: "0.01em",
       }}>
         How can I help you today?
       </div>
@@ -753,20 +769,19 @@ export default function Home() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                background: "#00A3E0",
+                gap: 6,
+                background: "transparent",
                 border: "none",
-                borderRadius: 20,
-                padding: "8px 16px",
-                fontSize: 12,
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 13,
                 fontWeight: 600,
-                color: "#FFFFFF",
+                color: "#9CA3AF",
                 cursor: "pointer",
-                boxShadow: "0 2px 6px rgba(0,163,224,0.3)",
-                transition: "background 0.2s",
+                transition: "all 0.2s",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "#008CBE")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "#00A3E0")}
+              onMouseOver={(e) => { e.currentTarget.style.color = "#00A3E0"; e.currentTarget.style.background = "rgba(0,163,224,0.1)"; }}
+              onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent"; }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"></line>
