@@ -83,24 +83,7 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
         cursor = conn.cursor()
         bill_row = None
 
-        # ---------------------------------------------------------
-        # 1️⃣ Try AccountNumber lookup
-        # ---------------------------------------------------------
-        if account_number:
-            logger.info("🔍 Searching Bills by AccountNumber=%s", account_number)
-
-            cursor.execute(
-                "SELECT * FROM Bills WHERE AccountNumber = ?",
-                (account_number,)
-            )
-
-            bill_row = cursor.fetchone()
-
-            if bill_row:
-                logger.info("✅ Bill found by AccountNumber → %s", dict(bill_row))
-            else:
-                logger.warning("⚠️ No bill found for AccountNumber=%s", account_number)
-
+        
         # ---------------------------------------------------------
         # 2️⃣ Fallback to Supply Number
         # ---------------------------------------------------------
