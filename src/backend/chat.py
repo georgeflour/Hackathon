@@ -7,6 +7,8 @@ import time
 import logging
 import sqlite3
 from pathlib import Path
+import json
+import logging
 
 # ── Logger ─────────────────────────────────────────────────────
 logging.basicConfig(
@@ -59,14 +61,21 @@ def _format_bill_and_customer(bill_row, customer) -> str:
     return "\n".join(parts)
 
 
-# ── Primary lookup: by AccountNumber or Arxikos_Paroxis ───────
 def get_sql_context(supply_number: str | None, account_number: str | None = None) -> str:
     """
     Lookup priority:
-      1. Bills.AccountNumber  → Α/Α Λογαριασμού  (OCR, most reliable)
-      2. Bills.Arxikos_Paroxis → 12-digit Αρ. Παροχής (fallback)
+      1️⃣ Bills.AccountNumber
+      2️⃣ Bills.Arxikos_Paroxis
+
+    Returns ALL bills of the same customer.
     """
+
+    logger.info("────────────────────────────────────────────────────────────")
+    logger.info("🔎 SQL CONTEXT REQUEST")
+    logger.info("AccountNumber=%s | SupplyNumber=%s", account_number, supply_number)
+
     if not supply_number and not account_number:
+        logger.warning("⚠️ No identifiers provided")
         return ""
 
     try:
@@ -74,40 +83,120 @@ def get_sql_context(supply_number: str | None, account_number: str | None = None
         cursor = conn.cursor()
         bill_row = None
 
+        # ---------------------------------------------------------
+        # 1️⃣ Try AccountNumber lookup
+        # ---------------------------------------------------------
         if account_number:
-            cursor.execute("SELECT * FROM Bills WHERE AccountNumber = ?", (account_number,))
-            bill_row = cursor.fetchone()
-            if bill_row:
-                logger.info("✅ Bills SELECT by AccountNumber=%s → %s", account_number, dict(bill_row))
-            else:
-                logger.warning("⚠️  Bills SELECT by AccountNumber=%s → no rows found", account_number)
+            logger.info("🔍 Searching Bills by AccountNumber=%s", account_number)
 
+            cursor.execute(
+                "SELECT * FROM Bills WHERE AccountNumber = ?",
+                (account_number,)
+            )
+
+            bill_row = cursor.fetchone()
+
+            if bill_row:
+                logger.info("✅ Bill found by AccountNumber → %s", dict(bill_row))
+            else:
+                logger.warning("⚠️ No bill found for AccountNumber=%s", account_number)
+
+        # ---------------------------------------------------------
+        # 2️⃣ Fallback to Supply Number
+        # ---------------------------------------------------------
         if not bill_row and supply_number:
-            cursor.execute("SELECT * FROM Bills WHERE Arxikos_Paroxis = ?", (supply_number,))
-            bill_row = cursor.fetchone()
-            if bill_row:
-                logger.info("✅ Bills SELECT by Arxikos_Paroxis=%s → %s", supply_number, dict(bill_row))
-            else:
-                logger.warning("⚠️  Bills SELECT by Arxikos_Paroxis=%s → no rows found", supply_number)
+            logger.info("🔍 Searching Bills by Arxikos_Paroxis=%s", supply_number)
 
+            cursor.execute(
+                "SELECT * FROM Bills WHERE Arxikos_Paroxis = ?",
+                (supply_number,)
+            )
+
+            bill_row = cursor.fetchone()
+
+            if bill_row:
+                logger.info("✅ Bill found by SupplyNumber → %s", dict(bill_row))
+            else:
+                logger.warning("⚠️ No bill found for SupplyNumber=%s", supply_number)
+
+        # ---------------------------------------------------------
+        # 3️⃣ If still nothing → exit
+        # ---------------------------------------------------------
         if not bill_row:
-            logger.warning("⚠️  No Bill found for AccountNumber=%s / Arxikos_Paroxis=%s", account_number, supply_number)
+            logger.error(
+                "❌ No Bill found for AccountNumber=%s / SupplyNumber=%s",
+                account_number,
+                supply_number
+            )
             conn.close()
             return ""
 
         arxikos = bill_row["Arxikos_Paroxis"]
-        cursor.execute("SELECT * FROM Customers WHERE Arxikos_Paroxis = ?", (arxikos,))
+
+        logger.info("📦 Customer SupplyNumber identified: %s", arxikos)
+
+        # ---------------------------------------------------------
+        # 4️⃣ Fetch ALL bills of this customer
+        # ---------------------------------------------------------
+        logger.info("📑 Fetching ALL bills for customer")
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM Bills
+            WHERE Arxikos_Paroxis = ?
+            ORDER BY FromDate DESC
+            """,
+            (arxikos,)
+        )
+
+        bills = cursor.fetchall()
+
+        logger.info("✅ Total bills found: %s", len(bills))
+
+        for i, b in enumerate(bills, start=1):
+            logger.info("   Bill %s → %s | %s€", i, b["AccountNumber"], b["SynoloPoso"])
+
+        # ---------------------------------------------------------
+        # 5️⃣ Fetch customer
+        # ---------------------------------------------------------
+        logger.info("👤 Fetching customer data")
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM Customers
+            WHERE Arxikos_Paroxis = ?
+            """,
+            (arxikos,)
+        )
+
         customer = cursor.fetchone()
+
         if customer:
-            logger.info("✅ Customers SELECT by Arxikos_Paroxis=%s → %s", arxikos, dict(customer))
+            logger.info("✅ Customer found → %s", dict(customer))
         else:
-            logger.warning("⚠️  Customers SELECT by Arxikos_Paroxis=%s → no customer found", arxikos)
+            logger.warning("⚠️ Customer not found for Arxikos_Paroxis=%s", arxikos)
 
         conn.close()
-        return _format_bill_and_customer(bill_row, customer)
+
+        # ---------------------------------------------------------
+        # 6️⃣ Build JSON for LLM
+        # ---------------------------------------------------------
+        result = {
+            "customer": dict(customer) if customer else None,
+            "bills": [dict(b) for b in bills],
+            "bills_count": len(bills)
+        }
+
+        logger.info("📊 Final SQL context prepared")
+        logger.info("BillsCount=%s", len(bills))
+        logger.info("────────────────────────────────────────────────────────────")
+
+        return json.dumps(result, ensure_ascii=False, indent=2)
 
     except Exception as e:
-        logger.error("SQLite DB Error: %s", e, exc_info=True)
+        logger.error("❌ SQLite DB Error: %s", e, exc_info=True)
         return f"Σφάλμα ανάκτησης δεδομένων από τη βάση: {str(e)}"
 
 
