@@ -1083,7 +1083,33 @@ export default function Home() {
         height: "100vh",
         background: "var(--bg-main)",
         overflow: "hidden",
+        position: "relative",
       }}>
+        {/* Falling Aesthetic Lines */}
+        <div className="lines-container">
+          <div className="lines">
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+            <div className="line"></div>
+          </div>
+        </div>
 
         {/* ── Header ── */}
         <header style={{
@@ -1095,7 +1121,8 @@ export default function Home() {
           borderBottom: "1px solid rgba(0,0,0,0.08)",
           boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
           flexShrink: 0,
-          zIndex: 10,
+          zIndex: 20, /* Header above background */
+          position: "relative",
         }}>
           {!isSidebarOpen && (
             <button onClick={() => setIsSidebarOpen(true)} title="Show Sidebar" style={{ background: "none", border: "none", cursor: "pointer", marginRight: 8, color: "#4B5563" }}>
@@ -1153,6 +1180,8 @@ export default function Home() {
           maxWidth: 720,
           width: "100%",
           margin: "0 auto",
+          position: "relative",
+          zIndex: 10, /* Messages above background */
         }}>
           {messages.length === 0 ? (
             <EmptyState />
@@ -1172,7 +1201,7 @@ export default function Home() {
           padding: "12px 16px 20px",
           background: "var(--bg-main)",
           position: "relative",
-          zIndex: 10,
+          zIndex: 20, /* Input area above background */
         }}>
           {/* Wrapper for Glow + Input */}
           <div style={{ position: "relative", maxWidth: 720, margin: "0 auto" }}>
