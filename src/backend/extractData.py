@@ -283,6 +283,11 @@ def parse_back_new(lines: list[str]) -> dict:
     return data
 
 
+# Aliases for backward compatibility
+parse_front = parse_front_new
+parse_back = parse_back_new
+
+
 # ── PRINT RESULTS ─────────────────────────────────────────────────
 def print_results(front: dict, back: dict):
     """Print extracted data in formatted tables."""
