@@ -15,6 +15,8 @@ interface Message {
   stage?: "upload" | "match" | "answer";
   payload?: Record<string, unknown>;
   attachments?: File[];
+  verification?: "pending" | "approved" | "rejected";
+  pendingQuestion?: string;
 }
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
@@ -104,6 +106,117 @@ function TypingDots() {
   );
 }
 
+function MetricsBadges({ metrics }: { metrics: any }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  // Fallback defaults in case backend is outdated
+  if (!metrics) return null;
+
+  return (
+    <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+      {/* Confidence */}
+      <div
+        style={{ position: "relative" }}
+        onMouseEnter={() => setHovered("confidence")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+          background: "rgba(0,163,224,0.06)", border: "1px solid rgba(0,163,224,0.15)",
+          color: "#00A3E0", cursor: "help", transition: "all 0.2s"
+        }}>
+          🎯 Confidence: {metrics.confidence}%
+        </span>
+        {hovered === "confidence" && (
+          <div className="fade-up" style={{
+            position: "absolute", top: "100%", left: 0, marginTop: 4, width: 220, zIndex: 50,
+            background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: 10,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", fontSize: 12, color: "#374151",
+            lineHeight: 1.4
+          }}>
+            <strong style={{ display: "block", marginBottom: 4, color: "#111827" }}>Scientific Calibration</strong>
+            {metrics.formulas && metrics.formulas.confidence && (
+              <div style={{ padding: 4, background: "#F9FAFB", borderRadius: 4, fontFamily: "monospace", fontSize: 10, marginBottom: 6 }}>{metrics.formulas.confidence}</div>
+            )}
+            <div style={{ fontSize: 11, color: "#6B7280" }}>Calculated post-hoc based on chunk similarity, support count, and source agreement.</div>
+          </div>
+        )}
+      </div>
+
+      {/* Hallucination Risk */}
+      <div
+        style={{ position: "relative" }}
+        onMouseEnter={() => setHovered("hallucination")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+          background: "rgba(245, 158, 11, 0.06)", border: "1px solid rgba(245, 158, 11, 0.15)",
+          color: "#D97706", cursor: "help", transition: "all 0.2s"
+        }}>
+          🛡️ Hallucination Risk: {metrics.hallucinationRisk}
+        </span>
+        {hovered === "hallucination" && (
+          <div className="fade-up" style={{
+            position: "absolute", top: "100%", left: 0, marginTop: 4, width: 220, zIndex: 50,
+            background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: 10,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", fontSize: 12, color: "#374151",
+            lineHeight: 1.4
+          }}>
+            <strong style={{ display: "block", marginBottom: 4, color: "#111827" }}>Claim Verification</strong>
+            {metrics.formulas && metrics.formulas.hallucinationRisk && (
+              <div style={{ padding: 4, background: "#F9FAFB", borderRadius: 4, fontFamily: "monospace", fontSize: 10, marginBottom: 6 }}>{metrics.formulas.hallucinationRisk}</div>
+            )}
+            <div style={{ fontSize: 11, color: "#6B7280" }}>Measures unsupported vs supported claims derived directly from context docs.</div>
+          </div>
+        )}
+      </div>
+
+      {/* Explainability */}
+      <div
+        style={{ position: "relative" }}
+        onMouseEnter={() => setHovered("explainability")}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+          background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.15)",
+          color: "#059669", cursor: "help", transition: "all 0.2s"
+        }}>
+          🔍 Explainability Trace
+        </span>
+        {hovered === "explainability" && (
+          <div className="fade-up" style={{
+            position: "absolute", top: "100%", right: 0, marginTop: 4, width: 280, zIndex: 50,
+            background: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, padding: 10,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)", fontSize: 12, color: "#374151",
+            lineHeight: 1.4
+          }}>
+            <strong style={{ display: "block", marginBottom: 6, color: "#111827" }}>Claim-to-Evidence Mapping</strong>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {metrics.explainability && metrics.explainability.map((item: any, i: number) => (
+                <div key={i} style={{ padding: 6, background: "#F3F4F6", borderRadius: 6 }}>
+                  <div style={{ fontStyle: "italic", marginBottom: 4, fontSize: 11, color: "#111827" }}>"{item.claim}"</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 10, color: "#6B7280", background: "#E5E7EB", padding: "2px 6px", borderRadius: 4 }}>{item.source}</span>
+                    <span style={{ fontSize: 10, color: item.supported ? "#059669" : "#D97706", fontWeight: 700, textTransform: "uppercase" }}>{item.support}</span>
+                  </div>
+                </div>
+              ))}
+              {(!metrics.explainability || metrics.explainability.length === 0) && (
+                <span style={{ fontSize: 11, color: "#9CA3AF" }}>No specific claims detected.</span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── card for extracted / match data ───────────────────────────────── */
 function DataCard({ title, data }: { title: string; data: Record<string, unknown> }) {
   const rows = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== "");
@@ -130,7 +243,7 @@ function DataCard({ title, data }: { title: string; data: Record<string, unknown
 }
 
 /* ─── individual chat bubble ─────────────────────────────────────────── */
-function Bubble({ msg }: { msg: Message }) {
+function Bubble({ msg, onVerify }: { msg: Message, onVerify?: (id: string, ok: boolean) => void }) {
   const isUser = msg.role === "user";
   const isSystem = msg.role === "system";
 
@@ -182,8 +295,11 @@ function Bubble({ msg }: { msg: Message }) {
           color: "#111827",
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
-          overflow: "hidden",
+          overflow: "visible",
         }}>
+          {!isUser && msg.payload && (msg.payload as any).metrics && (
+            <MetricsBadges metrics={(msg.payload as any).metrics} />
+          )}
           {/* Image thumbnails */}
           {msg.imageUrls && msg.imageUrls.length > 0 && (
             <div style={{
@@ -214,7 +330,56 @@ function Bubble({ msg }: { msg: Message }) {
 
         {/* Optional structured payload */}
         {msg.payload && msg.stage === "upload" && (
-          <DataCard title="Bill Extracted" data={msg.payload as Record<string, unknown>} />
+          <>
+            <DataCard title="Bill Extracted" data={msg.payload as Record<string, unknown>} />
+            {msg.verification === "pending" && (
+              <div style={{
+                marginTop: 12, display: "flex", gap: 8, alignItems: "center",
+                padding: "10px 14px", background: "rgba(0,163,224,0.05)",
+                border: "1px solid rgba(0,163,224,0.2)", borderRadius: 12
+              }}>
+                <span style={{ fontSize: 13, color: "#374151", fontWeight: 500, flex: 1 }}>Είναι αυτά τα στοιχεία σωστά;</span>
+                <button
+                  onClick={() => onVerify?.(msg.id, true)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "6px",
+                    borderRadius: "6px", background: "transparent", color: "#10B981", border: "none", cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "rgba(16, 185, 129, 0.1)"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  title="Επιβεβαίωση"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
+                <button
+                  onClick={() => onVerify?.(msg.id, false)}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "6px",
+                    borderRadius: "6px", background: "transparent", color: "#EF4444", border: "none", cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  title="Απόρριψη"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+            )}
+            {msg.verification === "approved" && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#10B981", display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                Επιβεβαιώθηκαν
+              </div>
+            )}
+            {msg.verification === "rejected" && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#EF4444", display: "flex", alignItems: "center", gap: 4 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                Απορρίφθηκαν
+              </div>
+            )}
+          </>
         )}
         {msg.payload && msg.stage === "match" && (
           <DataCard title="Customer Matched" data={msg.payload as Record<string, unknown>} />
@@ -408,6 +573,57 @@ export default function Home() {
     } catch (e) { console.error("Failed to rename session", e) }
   }
 
+  async function handleVerify(msgId: string, ok: boolean) {
+    const msg = messages.find(m => m.id === msgId);
+    if (!msg) return;
+
+    updateMsg(msgId, { verification: ok ? "approved" : "rejected" });
+
+    if (!ok) {
+      addMsg({
+        role: "assistant",
+        content: "Τα δεδομένα δεν αναγνωρίστηκαν σωστά. Παρακαλώ ανεβάστε ξανά μια πιο καθαρή φωτογραφία του λογαριασμού σας.",
+      });
+      setExtracted(null);
+      setFiles([]);
+      return;
+    }
+
+    if (msg.pendingQuestion) {
+      const q = msg.pendingQuestion;
+      abortControllerRef.current = new AbortController();
+      const typingId = addMsg({ role: "assistant", content: "…" });
+      setIsTyping(true);
+      try {
+        const { chatWithAssistant } = await import("@/lib/api");
+        const ragContent = msg.payload ? `Bill Extracted Data:\n${JSON.stringify(msg.payload, null, 2)}` : "";
+        const explanation = await chatWithAssistant(q, ragContent, "", { signal: abortControllerRef.current.signal });
+        const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
+        updateMsg(typingId, {
+          content: textAnswer,
+          stage: "answer",
+          payload: explanation
+        });
+
+        if (currentSessionId) {
+          import("@/lib/api").then(api => api.saveMessage(currentSessionId, "assistant", textAnswer)).catch(console.error);
+        }
+      } catch (e: any) {
+        if (e.name === "AbortError") {
+          removeMsg(typingId);
+        } else {
+          updateMsg(typingId, { content: `Assistant is not fully wired up for questions yet, but I received: "${q}"\n\n(Error: ${String(e)})` });
+        }
+      }
+      setIsTyping(false);
+    } else {
+      addMsg({
+        role: "assistant",
+        content: "Τα δεδομένα επιβεβαιώθηκαν! Μπορείτε πλέον να με ρωτήσετε οτιδήποτε σχετικό με τον λογαριασμό σας.",
+      });
+    }
+  }
+
   function addMsg(msg: Omit<Message, "id">) {
     const full: Message = { ...msg, id: uid() };
     setMessages((prev) => [...prev, full]);
@@ -428,7 +644,7 @@ export default function Home() {
   }
 
   /* ── process files: upload only ── */
-  async function processFiles(pending: File[]): Promise<Record<string, unknown> | null> {
+  async function processFiles(pending: File[], pendingQuestion?: string): Promise<Record<string, unknown> | null> {
     const typingId = addMsg({ role: "assistant", content: "…" });
     setIsTyping(true);
 
@@ -438,9 +654,11 @@ export default function Home() {
       const ext = await uploadBill(pending, { signal: abortControllerRef.current.signal });
       setExtracted(ext);
       updateMsg(typingId, {
-        content: "I analysed your bill. Here are the extracted details:",
+        content: "I analysed your bill. Are these extracted details correct?",
         stage: "upload",
         payload: ext,
+        verification: "pending",
+        pendingQuestion: pendingQuestion,
       });
       return ext;
     } catch (e: any) {
@@ -509,12 +727,14 @@ export default function Home() {
     // 3. Process Files (Upload + Extract) if needed
     const isExplicitUpload = files.length > 0;
     if (isExplicitUpload || (pendingFiles.length > 0 && !currentExtracted)) {
-      const ext = await processFiles(pendingFiles);
+      const ext = await processFiles(pendingFiles, hasQuestion ? q : undefined);
       if (!ext) {
         setIsTyping(false);
         return;
       }
       currentExtracted = ext;
+      setIsTyping(false);
+      return; // Stop here and wait for the user to click Tick or Cross
     }
 
     // 4. Handle Questions
@@ -527,9 +747,8 @@ export default function Home() {
         // Import and run chatWithAssistant instead of the older endpoint
         const { chatWithAssistant } = await import("@/lib/api");
 
-        // You ideally would pass RAG context or SQL context here,
-        // but for now we simply pass the question forwards. 
-        const explanation = await chatWithAssistant(q, "", "", { signal: abortControllerRef.current.signal });
+        const ragContent = currentExtracted ? `Bill Extracted Data:\n${JSON.stringify(currentExtracted, null, 2)}` : "";
+        const explanation = await chatWithAssistant(q, ragContent, "", { signal: abortControllerRef.current.signal });
         const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
         updateMsg(typingId, {
           content: textAnswer,
@@ -809,7 +1028,7 @@ export default function Home() {
             <EmptyState />
           ) : (
             messages.map((msg) => (
-              <Bubble key={msg.id} msg={msg} />
+              <Bubble key={msg.id} msg={msg} onVerify={handleVerify} />
             ))
           )}
           <div ref={bottomRef} />
