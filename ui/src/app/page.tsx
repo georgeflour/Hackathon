@@ -11,12 +11,12 @@ interface Message {
   role: Role;
   content: string;
   imageUrls?: string[];          // blob preview URLs for image attachments
-  // optional structured payload after agent runs
   stage?: "upload" | "match" | "answer";
   payload?: Record<string, unknown>;
   attachments?: File[];
-  verification?: "pending" | "approved" | "rejected";
+  verification?: "pending" | "approved" | "rejected" | "editing";
   pendingQuestion?: string;
+  typingType?: "upload" | "chat";
 }
 
 /* ─── helpers ────────────────────────────────────────────────────────── */
@@ -27,11 +27,11 @@ function uid() {
 function DEHLogo({ size = 38 }: { size?: number }) {
   return (
     <Image
-      src="/bot-picture.png"
+      src="/woman-picture.png"
       alt="ΔΕΗ Logo"
       width={size}
       height={size}
-      style={{ borderRadius: 8, objectFit: "contain" }}
+      style={{ borderRadius: 8, objectFit: "cover" }}
       priority
     />
   );
@@ -96,13 +96,36 @@ function EmptyState() {
   );
 }
 
-function TypingDots() {
+function TypingDots({ type }: { type?: "upload" | "chat" }) {
+  const [msgIdx, setMsgIdx] = useState(0);
+
+  const msgs = type === "upload"
+    ? ["Εξαγωγή δεδομένων...", "Ανάλυση εικόνας...", "Αναγνώριση πεδίων..."]
+    : ["Σύνδεση με τον AI Agent...", "Αναζήτηση στη βάση γνώσης...", "Αξιολόγηση πληροφοριών...", "Σύνταξη απάντησης..."];
+
+  useEffect(() => {
+    if (!type) return;
+    const interval = setInterval(() => {
+      setMsgIdx((prev) => (prev + 1) % msgs.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [type, msgs.length]);
+
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 2px" }}>
-      <span className="typing-dot" />
-      <span className="typing-dot" />
-      <span className="typing-dot" />
-    </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "2px 0" }}>
+      {type && (
+        <span className="fade-up" key={msgIdx} style={{
+          fontSize: 12, color: "#9CA3AF", fontStyle: "italic"
+        }}>
+          {msgs[msgIdx]}
+        </span>
+      )}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px" }}>
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+        <span className="typing-dot" />
+      </span>
+    </div>
   );
 }
 
@@ -218,8 +241,46 @@ function MetricsBadges({ metrics }: { metrics: any }) {
 }
 
 /* ─── card for extracted / match data ───────────────────────────────── */
-function DataCard({ title, data }: { title: string; data: Record<string, unknown> }) {
+function DataCard({ title, data, onEdit }: { title: string; data: Record<string, unknown>; onEdit?: (k: string, v: string) => void }) {
   const rows = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== "");
+
+  if (onEdit) {
+    return (
+      <div className="fade-up" style={{
+        background: "linear-gradient(135deg, rgba(0,163,224,0.06) 0%, rgba(0,163,224,0.12) 100%)",
+        border: "1px solid rgba(0,163,224,0.4)",
+        boxShadow: "0 8px 24px rgba(0,163,224,0.12)",
+        borderRadius: 12,
+        padding: "16px 20px",
+        marginTop: 10,
+      }}>
+        <div style={{ color: "#00A3E0", fontWeight: 700, marginBottom: 16, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00A3E0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+          ΔΙΟΡΘΩΣΗ ΣΤΟΙΧΕΙΩΝ
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {rows.slice(0, 10).map(([k, v]) => (
+            <div key={k} style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
+              <label style={{ fontSize: 11, color: "#4B5563", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.02em", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={k.replace(/_/g, " ")}>{k.replace(/_/g, " ")}</label>
+              <input
+                value={String(v)}
+                onChange={(e) => onEdit(k, e.target.value)}
+                style={{
+                  padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,163,224,0.3)",
+                  fontSize: 13, color: "#004763", outline: "none", width: "100%",
+                  boxSizing: "border-box", transition: "all 0.2s",
+                  background: "rgba(255,255,255,0.7)", fontWeight: 500
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "#00A3E0"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,163,224,0.2)"; e.currentTarget.style.background = "#fff"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(0,163,224,0.3)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(255,255,255,0.7)"; }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       background: "rgba(0,163,224,0.05)",
@@ -230,12 +291,12 @@ function DataCard({ title, data }: { title: string; data: Record<string, unknown
       fontSize: 13,
     }}>
       <div style={{ color: "#00A3E0", fontWeight: 600, marginBottom: 8, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>{title}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px", alignItems: "baseline" }}>
         {rows.slice(0, 10).map(([k, v]) => (
-          <>
-            <span key={k + "-k"} style={{ color: "#9CA3AF", whiteSpace: "nowrap" }}>{k.replace(/_/g, " ")}</span>
-            <span key={k + "-v"} style={{ color: "#111827", wordBreak: "break-all" }}>{String(v)}</span>
-          </>
+          <div key={k} style={{ display: "contents" }}>
+            <span style={{ color: "#9CA3AF", whiteSpace: "nowrap" }}>{k.replace(/_/g, " ")}</span>
+            <span style={{ color: "#111827", wordBreak: "break-all", fontWeight: 500 }}>{String(v)}</span>
+          </div>
         ))}
       </div>
     </div>
@@ -243,7 +304,7 @@ function DataCard({ title, data }: { title: string; data: Record<string, unknown
 }
 
 /* ─── individual chat bubble ─────────────────────────────────────────── */
-function Bubble({ msg, onVerify }: { msg: Message, onVerify?: (id: string, ok: boolean) => void }) {
+function Bubble({ msg, onVerify, onCancelEdit, onEditPayload }: { msg: Message, onVerify?: (id: string, ok: boolean) => void, onCancelEdit?: (id: string) => void, onEditPayload?: (id: string, newPayload: Record<string, unknown>) => void }) {
   const isUser = msg.role === "user";
   const isSystem = msg.role === "system";
 
@@ -300,6 +361,12 @@ function Bubble({ msg, onVerify }: { msg: Message, onVerify?: (id: string, ok: b
           {!isUser && msg.payload && (msg.payload as any).metrics && (
             <MetricsBadges metrics={(msg.payload as any).metrics} />
           )}
+          {!isUser && msg.payload && (msg.payload as any).metrics?.thoughtTime && msg.content !== "…" && (
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 8, display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "rgba(0,0,0,0.04)", borderRadius: 6, width: "fit-content" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Thought for {(msg.payload as any).metrics.thoughtTime} s
+            </div>
+          )}
           {/* Image thumbnails */}
           {msg.imageUrls && msg.imageUrls.length > 0 && (
             <div style={{
@@ -325,15 +392,50 @@ function Bubble({ msg, onVerify }: { msg: Message, onVerify?: (id: string, ok: b
             </div>
           )}
           {/* Text content */}
-          {msg.content && (msg.content === "…" ? <TypingDots /> : <span style={{ padding: msg.imageUrls?.length ? "0 6px 4px" : undefined, display: "block" }}>{msg.content}</span>)}
+          {msg.content && (msg.content === "…" ? <TypingDots type={msg.typingType} /> : <span style={{ padding: msg.imageUrls?.length ? "0 6px 4px" : undefined, display: "block" }}>{msg.content}</span>)}
         </div>
 
         {/* Optional structured payload */}
         {msg.payload && msg.stage === "upload" && (
           <>
-            <DataCard title="Bill Extracted" data={msg.payload as Record<string, unknown>} />
+            <DataCard
+              title={msg.verification === "editing" ? "Επεξεργασία Στοιχείων Λογαριασμού" : "Bill Extracted"}
+              data={msg.payload as Record<string, unknown>}
+              onEdit={msg.verification === "editing" ? (k, v) => onEditPayload?.(msg.id, { ...msg.payload, [k]: v } as Record<string, unknown>) : undefined}
+            />
+
+            {msg.verification === "editing" && (
+              <div className="fade-up" style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => onCancelEdit?.(msg.id)}
+                  style={{
+                    padding: "8px 16px", borderRadius: "8px", background: "#FFFFFF", color: "#6B7280",
+                    border: "1px solid #D1D5DB", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "#F3F4F6"; e.currentTarget.style.color = "#374151"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.color = "#6B7280"; }}
+                >
+                  Ακύρωση
+                </button>
+                <button
+                  onClick={() => onVerify?.(msg.id, true)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 20px", borderRadius: "8px", background: "#00A3E0", color: "#fff",
+                    border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, transition: "all 0.2s",
+                    boxShadow: "0 2px 6px rgba(0,163,224,0.3)"
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "#008CBE"; e.currentTarget.style.boxShadow = "0 4px 10px rgba(0,163,224,0.4)"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "#00A3E0"; e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,163,224,0.3)"; }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  Αποθήκευση
+                </button>
+              </div>
+            )}
+
             {msg.verification === "pending" && (
-              <div style={{
+              <div className="fade-up" style={{
                 marginTop: 12, display: "flex", gap: 8, alignItems: "center",
                 padding: "10px 14px", background: "rgba(0,163,224,0.05)",
                 border: "1px solid rgba(0,163,224,0.2)", borderRadius: 12
@@ -361,20 +463,20 @@ function Bubble({ msg, onVerify }: { msg: Message, onVerify?: (id: string, ok: b
                   }}
                   onMouseOver={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"; }}
                   onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
-                  title="Απόρριψη"
+                  title="Απόρριψη και Διόρθωση"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
               </div>
             )}
             {msg.verification === "approved" && (
-              <div style={{ marginTop: 8, fontSize: 12, color: "#10B981", display: "flex", alignItems: "center", gap: 4 }}>
+              <div className="fade-up" style={{ marginTop: 8, fontSize: 12, color: "#10B981", display: "flex", alignItems: "center", gap: 4 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                 Επιβεβαιώθηκαν
               </div>
             )}
             {msg.verification === "rejected" && (
-              <div style={{ marginTop: 8, fontSize: 12, color: "#EF4444", display: "flex", alignItems: "center", gap: 4 }}>
+              <div className="fade-up" style={{ marginTop: 8, fontSize: 12, color: "#EF4444", display: "flex", alignItems: "center", gap: 4 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 Απορρίφθηκαν
               </div>
@@ -577,22 +679,18 @@ export default function Home() {
     const msg = messages.find(m => m.id === msgId);
     if (!msg) return;
 
-    updateMsg(msgId, { verification: ok ? "approved" : "rejected" });
-
-    if (!ok) {
-      addMsg({
-        role: "assistant",
-        content: "Τα δεδομένα δεν αναγνωρίστηκαν σωστά. Παρακαλώ ανεβάστε ξανά μια πιο καθαρή φωτογραφία του λογαριασμού σας.",
-      });
-      setExtracted(null);
-      setFiles([]);
+    if (ok) {
+      updateMsg(msgId, { verification: "approved" });
+      setExtracted(msg.payload as Record<string, unknown>);
+    } else {
+      updateMsg(msgId, { verification: "editing" });
       return;
     }
 
     if (msg.pendingQuestion) {
       const q = msg.pendingQuestion;
       abortControllerRef.current = new AbortController();
-      const typingId = addMsg({ role: "assistant", content: "…" });
+      const typingId = addMsg({ role: "assistant", content: "…", typingType: "chat" });
       setIsTyping(true);
       try {
         const { chatWithAssistant } = await import("@/lib/api");
@@ -630,8 +728,22 @@ export default function Home() {
     return full.id;
   }
 
+  function handleCancelEdit(id: string) {
+    updateMsg(id, { verification: "rejected" });
+    addMsg({
+      role: "assistant",
+      content: "Η διαδικασία εισαγωγής ακυρώθηκε. Παρακαλώ ανεβάστε ξανά μια πιο καθαρή φωτογραφία του λογαριασμού σας.",
+    });
+    setExtracted(null);
+    setFiles([]);
+  }
+
   function updateMsg(id: string, patch: Partial<Message>) {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  }
+
+  function handleEditPayload(id: string, newPayload: Record<string, unknown>) {
+    updateMsg(id, { payload: newPayload });
   }
 
   function removeMsg(id: string) {
@@ -645,7 +757,7 @@ export default function Home() {
 
   /* ── process files: upload only ── */
   async function processFiles(pending: File[], pendingQuestion?: string): Promise<Record<string, unknown> | null> {
-    const typingId = addMsg({ role: "assistant", content: "…" });
+    const typingId = addMsg({ role: "assistant", content: "…", typingType: "upload" });
     setIsTyping(true);
 
     abortControllerRef.current = new AbortController();
@@ -740,7 +852,7 @@ export default function Home() {
     // 4. Handle Questions
     if (hasQuestion) {
       abortControllerRef.current = new AbortController();
-      const typingId = addMsg({ role: "assistant", content: "…" });
+      const typingId = addMsg({ role: "assistant", content: "…", typingType: "chat" });
       setIsTyping(true);
       try {
         const currentMatch = matchResult || {};
@@ -831,19 +943,37 @@ export default function Home() {
           <div>
             Chat History
           </div>
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            style={{
-              background: "transparent", border: "none", cursor: "pointer", color: "#9CA3AF",
-              padding: "4px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all 0.2s"
-            }}
-            onMouseOver={(e) => { e.currentTarget.style.color = "#4B5563"; e.currentTarget.style.background = "rgba(0,0,0,0.05)" }}
-            onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent" }}
-            title="Close Sidebar"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+            <button
+              onClick={handleRestart}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer", color: "#9CA3AF",
+                padding: "6px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s"
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.color = "#00A3E0"; e.currentTarget.style.background = "rgba(0,163,224,0.1)" }}
+              onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent" }}
+              title="New Chat"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer", color: "#9CA3AF",
+                padding: "6px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s"
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.color = "#4B5563"; e.currentTarget.style.background = "rgba(0,0,0,0.05)" }}
+              onMouseOut={(e) => { e.currentTarget.style.color = "#9CA3AF"; e.currentTarget.style.background = "transparent" }}
+              title="Close Sidebar"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+          </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "8px" }}>
           {sessions.map(s => (
@@ -1028,7 +1158,9 @@ export default function Home() {
             <EmptyState />
           ) : (
             messages.map((msg) => (
-              <Bubble key={msg.id} msg={msg} onVerify={handleVerify} />
+              <div key={msg.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Bubble msg={msg} onVerify={handleVerify} onCancelEdit={handleCancelEdit} onEditPayload={handleEditPayload} />
+              </div>
             ))
           )}
           <div ref={bottomRef} />

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from src.backend.agent import ask_agent
 import random
 import re
+import time
 
 router = APIRouter()
 
@@ -75,9 +76,17 @@ def chat(req: ChatRequest):
     - Δώσε σύντομη, σαφή απάντηση.
     """
 
+    start_time = time.time()
     answer = ask_agent(user_prompt)
+    end_time = time.time()
+    
+    thought_time_sec = round(end_time - start_time, 1)
+
     metrics = generate_scientific_metrics(answer)
+    metrics["thoughtTime"] = thought_time_sec
+
     return {
         "answer": answer.strip(),
         "metrics": metrics
     }
+
