@@ -793,7 +793,7 @@ export default function Home() {
       try {
         const { chatWithAssistant } = await import("@/lib/api");
         const accountNumber = (msg.payload?.account_number as string) || localStorage.getItem("deh_account_number") || "";
-        const supplyNumber  = (msg.payload?.supply_number  as string) || localStorage.getItem("deh_supply_number")  || "";
+        const supplyNumber = (msg.payload?.supply_number as string) || localStorage.getItem("deh_supply_number") || "";
         const explanation = await chatWithAssistant(q, "", "", supplyNumber, accountNumber, { signal: abortControllerRef.current.signal });
         const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
         updateMsg(typingId, {
@@ -828,13 +828,8 @@ export default function Home() {
   }
 
   function handleCancelEdit(id: string) {
-    updateMsg(id, { verification: "rejected" });
-    addMsg({
-      role: "assistant",
-      content: "Η διαδικασία εισαγωγής ακυρώθηκε. Παρακαλώ ανεβάστε ξανά μια πιο καθαρή φωτογραφία του λογαριασμού σας.",
-    });
-    setExtracted(null);
-    setFiles([]);
+    // Revert the message to the "waiting for verification" state
+    updateMsg(id, { verification: "pending" });
   }
 
   function updateMsg(id: string, patch: Partial<Message>) {
@@ -867,9 +862,9 @@ export default function Home() {
 
       // ── Persist identifiers so they survive page reloads ──────────
       const accountNum = (ext?.account_number as string) ?? "";
-      const supplyNum  = (ext?.supply_number  as string) ?? "";
+      const supplyNum = (ext?.supply_number as string) ?? "";
       if (accountNum) localStorage.setItem("deh_account_number", accountNum);
-      if (supplyNum)  localStorage.setItem("deh_supply_number",  supplyNum);
+      if (supplyNum) localStorage.setItem("deh_supply_number", supplyNum);
       console.log("[processFiles] 💾 persisted to localStorage → account_number:", accountNum, "| supply_number:", supplyNum);
 
       updateMsg(typingId, {
@@ -911,7 +906,7 @@ export default function Home() {
       } else {
         // 2. Fall back to localStorage (survives page reloads)
         const storedAccount = localStorage.getItem("deh_account_number");
-        const storedSupply  = localStorage.getItem("deh_supply_number");
+        const storedSupply = localStorage.getItem("deh_supply_number");
         if (storedAccount || storedSupply) {
           currentExtracted = { account_number: storedAccount ?? "", supply_number: storedSupply ?? "" };
           console.log("[handleSend] ♻️  recovered identifiers from localStorage → account_number:", storedAccount, "| supply_number:", storedSupply);
