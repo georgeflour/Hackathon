@@ -886,8 +886,7 @@ export default function Home() {
       setIsTyping(false);
     }
   }
-
-  /* ── send: handles files + optional question ── */
+/* ── send: handles files + optional question ── */
   async function handleSend() {
     const q = input.trim();
     const hasQuestion = q.length > 0;
@@ -905,11 +904,21 @@ export default function Home() {
         console.log("[handleSend] ♻️  recovered extracted from upload message payload");
       } else {
         // 2. Fall back to localStorage (survives page reloads)
-        const storedAccount = localStorage.getItem("deh_account_number");
-        const storedSupply = localStorage.getItem("deh_supply_number");
-        if (storedAccount || storedSupply) {
-          currentExtracted = { account_number: storedAccount ?? "", supply_number: storedSupply ?? "" };
-          console.log("[handleSend] ♻️  recovered identifiers from localStorage → account_number:", storedAccount, "| supply_number:", storedSupply);
+        const storedData = localStorage.getItem("deh_extracted_data");
+        if (storedData) {
+          try {
+            currentExtracted = JSON.parse(storedData);
+            console.log("[handleSend] ♻️  recovered full extracted data from localStorage:", currentExtracted);
+          } catch (e) {
+            console.error("[handleSend] failed to parse stored data:", e);
+            // Fallback to individual fields
+            const storedAccount = localStorage.getItem("deh_account_number");
+            const storedSupply = localStorage.getItem("deh_supply_number");
+            if (storedAccount || storedSupply) {
+              currentExtracted = { account_number: storedAccount ?? "", supply_number: storedSupply ?? "" };
+              console.log("[handleSend] ♻️  recovered identifiers from localStorage → account_number:", storedAccount, "| supply_number:", storedSupply);
+            }
+          }
         }
       }
     }
@@ -984,6 +993,15 @@ export default function Home() {
       }
       currentExtracted = ext;
       console.log("[handleSend] extraction result:", currentExtracted);
+      
+      // Save full extracted data to localStorage for persistence
+      try {
+        localStorage.setItem("deh_extracted_data", JSON.stringify(currentExtracted));
+        console.log("[handleSend] 💾 saved full extracted data to localStorage");
+      } catch (e) {
+        console.error("[handleSend] failed to save extracted data to localStorage:", e);
+      }
+      
       setIsTyping(false);
       return; // Stop here and wait for the user to click Tick or Cross
     }
@@ -996,10 +1014,12 @@ export default function Home() {
       try {
         const { chatWithAssistant } = await import("@/lib/api");
 
+        // ── Build comprehensive SQL context from all extracted data ──
+        const sqlContext: Record<string, any> = {};
+        
         // Extract identifiers for SQLite lookup
         // account_number → Bills.AccountNumber  (primary,  e.g. "20260318003")
         // supply_number  → Bills.Arxikos_Paroxis (fallback, e.g. "650182947331")
-        // Priority: currentExtracted (from OCR) → localStorage (persisted from last upload)
         const accountNumber =
           (currentExtracted?.account_number as string) ||
           localStorage.getItem("deh_account_number") ||
@@ -1009,14 +1029,70 @@ export default function Home() {
           localStorage.getItem("deh_supply_number") ||
           "";
 
+        // ── Include ALL extracted fields if available ──────────────
+        if (currentExtracted) {
+          // Basic identifiers
+          sqlContext.account_number = accountNumber;
+          sqlContext.supply_number = supplyNumber;
+          
+          // Bill details
+          if (currentExtracted.invoice_total_eur) sqlContext.invoice_total_eur = currentExtracted.invoice_total_eur;
+          if (currentExtracted.invoice_due_date) sqlContext.invoice_due_date = currentExtracted.invoice_due_date;
+          if (currentExtracted.issue_date) sqlContext.issue_date = currentExtracted.issue_date;
+          if (currentExtracted.next_meter_read_date) sqlContext.next_meter_read_date = currentExtracted.next_meter_read_date;
+          
+          // Period and consumption
+          if (currentExtracted.service_period_start) sqlContext.service_period_start = currentExtracted.service_period_start;
+          if (currentExtracted.service_period_end) sqlContext.service_period_end = currentExtracted.service_period_end;
+          if (currentExtracted.billing_days) sqlContext.billing_days = currentExtracted.billing_days;
+          if (currentExtracted.kwh_consumed) sqlContext.kwh_consumed = currentExtracted.kwh_consumed;
+          
+          // Tariff info
+          if (currentExtracted.tariff_type) sqlContext.tariff_type = currentExtracted.tariff_type;
+          if (currentExtracted.tariff_status) sqlContext.tariff_status = currentExtracted.tariff_status;
+          if (currentExtracted.bill_type) sqlContext.bill_type = currentExtracted.bill_type;
+          
+          // Charges breakdown
+          if (currentExtracted.supply_charges_eur) sqlContext.supply_charges_eur = currentExtracted.supply_charges_eur;
+          if (currentExtracted.regulated_charges_eur) sqlContext.regulated_charges_eur = currentExtracted.regulated_charges_eur;
+          if (currentExtracted.opposite_consumption_eur) sqlContext.opposite_consumption_eur = currentExtracted.opposite_consumption_eur;
+          if (currentExtracted.misc_charges_eur) sqlContext.misc_charges_eur = currentExtracted.misc_charges_eur;
+          if (currentExtracted.vat_eur) sqlContext.vat_eur = currentExtracted.vat_eur;
+          if (currentExtracted.previous_unpaid_eur) sqlContext.previous_unpaid_eur = currentExtracted.previous_unpaid_eur;
+          
+          // Additional info
+          if (currentExtracted.customer_address) sqlContext.customer_address = currentExtracted.customer_address;
+          if (currentExtracted.payment_reference) sqlContext.payment_reference = currentExtracted.payment_reference;
+          
+          // Include confidence metrics if available
+          if (currentExtracted.confidence_metrics) {
+            sqlContext.confidence_metrics = currentExtracted.confidence_metrics;
+          }
+          
+          console.log("[handleSend] 📦 comprehensive SQL context built with", Object.keys(sqlContext).length, "fields");
+        }
+
         console.log("[handleSend] ── calling chatWithAssistant ────────");
         console.log("[handleSend] question sent to API:", q);
         console.log("[handleSend] accountNumber (primary):", accountNumber || "(empty)");
         console.log("[handleSend] supplyNumber  (fallback):", supplyNumber || "(empty)");
+        console.log("[handleSend] full sqlContext:", sqlContext);
         console.log("[handleSend] source → extracted:", !!currentExtracted?.account_number, "| localStorage:", !!localStorage.getItem("deh_account_number"));
         console.log("[handleSend] DB lookup will fire:", !!(accountNumber || supplyNumber));
 
-        const explanation = await chatWithAssistant(q, "", "", supplyNumber, accountNumber, { signal: abortControllerRef.current.signal });
+        // Send comprehensive context as JSON string
+        const sqlContextString = Object.keys(sqlContext).length > 0 
+          ? JSON.stringify(sqlContext, null, 2) 
+          : "";
+
+        const explanation = await chatWithAssistant(
+          q, 
+          "", // rag_context 
+          sqlContextString, // sql_context with all extracted data
+          supplyNumber, 
+          accountNumber, 
+          { signal: abortControllerRef.current.signal }
+        );
 
         console.log("[handleSend] ── response received ─────────────────");
         console.log("[handleSend] raw API response:", explanation);
