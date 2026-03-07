@@ -748,8 +748,9 @@ export default function Home() {
       setIsTyping(true);
       try {
         const { chatWithAssistant } = await import("@/lib/api");
-        const ragContent = msg.payload ? `Bill Extracted Data:\n${JSON.stringify(msg.payload, null, 2)}` : "";
-        const explanation = await chatWithAssistant(q, ragContent, "", { signal: abortControllerRef.current.signal });
+        const accountNumber = (msg.payload?.account_number as string) || localStorage.getItem("deh_account_number") || "";
+        const supplyNumber  = (msg.payload?.supply_number  as string) || localStorage.getItem("deh_supply_number")  || "";
+        const explanation = await chatWithAssistant(q, "", "", supplyNumber, accountNumber, { signal: abortControllerRef.current.signal });
         const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
         updateMsg(typingId, {
           content: textAnswer,
@@ -981,8 +982,6 @@ export default function Home() {
         console.log("[handleSend] ── response received ─────────────────");
         console.log("[handleSend] raw API response:", explanation);
 
-        const ragContent = currentExtracted ? `Bill Extracted Data:\n${JSON.stringify(currentExtracted, null, 2)}` : "";
-        const explanation = await chatWithAssistant(q, ragContent, "", { signal: abortControllerRef.current.signal });
         const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
         console.log("[handleSend] textAnswer:", textAnswer?.slice(0, 120), textAnswer?.length > 120 ? "…" : "");
 
