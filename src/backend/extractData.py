@@ -11,7 +11,7 @@ from datetime import datetime
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
 
-ENDPOINT = "https://recognisionimage.cognitiveservices.azure.com/"
+ENDPOINT = "https://hacktothefuture-resource.cognitiveservices.azure.com"
 KEY = os.environ.get("AZURE_DOC_KEY", "")
 
 def get_ocr_lines(file_path: str, debug: bool = False) -> list[str]:
