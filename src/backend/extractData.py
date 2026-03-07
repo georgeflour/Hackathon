@@ -287,6 +287,59 @@ def parse_back_new(lines: list[str]) -> dict:
 parse_front = parse_front_new
 parse_back = parse_back_new
 
+def calculate_confidence_metrics(data: dict, lines: list[str]) -> dict:
+    """Calculate confidence metrics based on extracted data and OCR lines."""
+    # List of key fields we always expect
+    expected_fields = [
+        "vendor_name", "bill_type", "supply_number", "account_number",
+        "invoice_due_date", "invoice_total_eur", "payment_reference"
+    ]
+    
+    found_count = 0
+    explainability = []
+    
+    text = " ".join(lines)
+    
+    for k, v in data.items():
+        if k in ["source_file_front", "source_file_back", "source_file", "meter_readings"]:
+            continue
+            
+        if v:
+            # Check if value exists in the text (which it should, since we parsed it from there)
+            supported = str(v) in text or str(v).replace(",", ".") in text or str(v).replace(".", ",") in text
+            if k in expected_fields:
+                found_count += 1
+                
+            explainability.append({
+                "claim": f"{k.replace('_', ' ').capitalize()}: {v}",
+                "source": "OCR Reading",
+                "supported": bool(supported),
+                "support": "HIGH" if supported else "MEDIUM"
+            })
+            
+    total_expected = len(expected_fields)
+    base_confidence = min(100, int((found_count / total_expected) * 100)) if total_expected > 0 else 0
+    
+    # Adjust confidence based on overall field density
+    total_extracted = len([k for k, v in data.items() if v and k not in ["source_file_front", "source_file_back", "source_file", "meter_readings"]])
+    if total_extracted > 10 and base_confidence < 95:
+        base_confidence = min(99, base_confidence + 5)
+        
+    hallucination_risk = "Low" if base_confidence >= 80 else "Medium"
+    if base_confidence < 50:
+        hallucination_risk = "High"
+        
+    return {
+        "confidence": base_confidence,
+        "hallucinationRisk": hallucination_risk,
+        "formulas": {
+            "confidence": f"({found_count} core fields / {total_expected} expected) * 100 + volume bonus",
+            "hallucinationRisk": "Low if confidence >= 80, else Medium/High"
+        },
+        "explainability": explainability[:8]  # limit to top 8 for UI brevity
+    }
+
+
 
 # ── PRINT RESULTS ─────────────────────────────────────────────────
 def print_results(front: dict, back: dict):

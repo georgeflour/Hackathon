@@ -16,7 +16,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi import Form
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from src.backend.extractData import get_ocr_lines, parse_front, parse_back
+from src.backend.extractData import get_ocr_lines, parse_front, parse_back, calculate_confidence_metrics
 
 logger = logging.getLogger("upload")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
@@ -68,7 +68,13 @@ async def upload_bill(
             # front fields take priority on collision
             data = {**back_data, **data}
 
-        logger.info("📤 Returning %d fields", len(data))
+        # Calculate confidence metric
+        all_lines = (front_lines if 'front_lines' in locals() else []) + (back_lines if 'back_lines' in locals() else [])
+        metrics = calculate_confidence_metrics(data, all_lines)
+        data["metrics"] = metrics
+        data["explainability"] = metrics.pop("explainability", [])
+
+        logger.info("📤 Returning %d fields with confidence %d%%", len(data), metrics.get("confidence", 0))
         return data
 
     except Exception as exc:
