@@ -17,7 +17,7 @@ AZURE_ENDPOINT = os.getenv("AZURE_AI_PROJECT_ENDPOINT")
  
 # Use the correct agent name and version
 AGENT_NAME = os.getenv("AZURE_AGENT_NAME", "deiAgent")
-AGENT_VERSION = os.getenv("AZURE_AGENT_VERSION", "1")
+AGENT_VERSION = os.getenv("AZURE_AGENT_VERSION", "2")
  
 AZURE_TENANT_ID = os.getenv("AZURE_TENANT_ID")
 AZURE_CLIENT_ID = os.getenv("AZURE_CLIENT_ID")
