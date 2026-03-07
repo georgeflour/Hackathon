@@ -355,6 +355,127 @@ function DataCard({ title, data, onEdit }: { title: string; data: Record<string,
 }
 
 
+/* ─── formatted message ──────────────────────────────────────────────── */
+function FormattedMessage({ text, role }: { text: string, role: Role }) {
+  // Helper to render bold text using naive split
+  const renderTextWithFormatting = (content: string) => {
+    // Split by **
+    const parts = content.split(/(\*\*.*?\*\*)/g);
+    return (
+      <>
+        {parts.map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+            const inner = part.slice(2, -2);
+            return <strong key={i}>{inner}</strong>;
+          }
+          return <React.Fragment key={i}>{part}</React.Fragment>;
+        })}
+      </>
+    );
+  };
+
+  // Helper for the Accordion UI to ensure uniformity
+  const AestheticAccordion = ({ title, children, count }: { title: string, count?: number, children: React.ReactNode }) => (
+    <details style={{
+      background: "rgba(0,163,224,0.04)",
+      borderRadius: 8,
+      border: "1px solid rgba(0,163,224,0.15)",
+      overflow: "hidden"
+    }}>
+      <summary style={{
+        cursor: "pointer",
+        padding: "8px 12px",
+        fontWeight: 600,
+        color: "#0077a8",
+        fontSize: 13,
+        listStyle: "none",
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        userSelect: "none",
+      }}
+        onClick={(e) => {
+          const target = e.currentTarget as HTMLElement;
+          const isOpen = target.parentElement?.hasAttribute("open");
+          target.style.background = isOpen ? "transparent" : "rgba(0,163,224,0.04)";
+        }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        {title} {count !== undefined ? `(${count})` : ''}
+      </summary>
+      <div style={{ padding: "4px 12px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {children}
+      </div>
+    </details>
+  );
+
+  // Extract "Source:" block from the bottom if it exists
+  const sourceRegex = /^([\s\S]*?)[\r\n]*(?:Source:|Sources:)([\s\S]*)$/i;
+  const match = text.match(sourceRegex);
+
+  if (!match) {
+    return (
+      <div style={{ padding: "0 6px 4px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <span style={{ display: "block" }}>{renderTextWithFormatting(text)}</span>
+        {role !== "user" && (
+          <AestheticAccordion title="Document Chunks">
+            <div style={{ color: "#6B7280", fontSize: 12, fontStyle: "italic", padding: "4px 0" }}>
+              Reference context retrieved from knowledge base documents.
+            </div>
+          </AestheticAccordion>
+        )}
+      </div>
+    );
+  }
+
+  const mainText = match[1].trim();
+  const sourcesBlock = match[2].trim();
+
+  // Extract URLs from the sources block
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urls = sourcesBlock.match(urlRegex) || [];
+
+  return (
+    <div style={{ padding: "0 6px 4px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <span style={{ display: "block" }}>{renderTextWithFormatting(mainText)}</span>
+      {role !== "user" && (
+        urls.length > 0 ? (
+          <AestheticAccordion title="Sources" count={urls.length}>
+            {urls.map((url, i) => (
+              <a
+                key={i}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: "#4B5563",
+                  fontSize: 12,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 6,
+                  wordBreak: "break-all",
+                  lineHeight: 1.4
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.color = "#00A3E0"; e.currentTarget.style.textDecoration = "underline"; }}
+                onMouseOut={(e) => { e.currentTarget.style.color = "#4B5563"; e.currentTarget.style.textDecoration = "none"; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2, color: "#9CA3AF" }}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                {url}
+              </a>
+            ))}
+          </AestheticAccordion>
+        ) : (
+          <AestheticAccordion title="Document Chunks">
+            <div style={{ color: "#6B7280", fontSize: 12, fontStyle: "italic", padding: "4px 0" }}>
+              Reference context retrieved from knowledge base documents.
+            </div>
+          </AestheticAccordion>
+        )
+      )}
+    </div>
+  );
+}
+
 /* ─── individual chat bubble ─────────────────────────────────────────── */
 function Bubble({ msg, onVerify, onCancelEdit, onEditPayload, onShowMetrics }: {
   msg: Message,
@@ -487,7 +608,7 @@ function Bubble({ msg, onVerify, onCancelEdit, onEditPayload, onShowMetrics }: {
             </div>
           )}
           {/* Text content */}
-          {msg.content && (msg.content === "…" ? <TypingDots type={msg.typingType} /> : <span style={{ padding: msg.imageUrls?.length ? "0 6px 4px" : undefined, display: "block" }}>{msg.content}</span>)}
+          {msg.content && (msg.content === "…" ? <TypingDots type={msg.typingType} /> : <FormattedMessage text={msg.content} role={msg.role} />)}
         </div>
 
         {/* Optional structured payload */}
@@ -886,7 +1007,7 @@ export default function Home() {
       setIsTyping(false);
     }
   }
-/* ── send: handles files + optional question ── */
+  /* ── send: handles files + optional question ── */
   async function handleSend() {
     const q = input.trim();
     const hasQuestion = q.length > 0;
@@ -993,7 +1114,7 @@ export default function Home() {
       }
       currentExtracted = ext;
       console.log("[handleSend] extraction result:", currentExtracted);
-      
+
       // Save full extracted data to localStorage for persistence
       try {
         localStorage.setItem("deh_extracted_data", JSON.stringify(currentExtracted));
@@ -1001,7 +1122,7 @@ export default function Home() {
       } catch (e) {
         console.error("[handleSend] failed to save extracted data to localStorage:", e);
       }
-      
+
       setIsTyping(false);
       return; // Stop here and wait for the user to click Tick or Cross
     }
@@ -1016,7 +1137,7 @@ export default function Home() {
 
         // ── Build comprehensive SQL context from all extracted data ──
         const sqlContext: Record<string, any> = {};
-        
+
         // Extract identifiers for SQLite lookup
         // account_number → Bills.AccountNumber  (primary,  e.g. "20260318003")
         // supply_number  → Bills.Arxikos_Paroxis (fallback, e.g. "650182947331")
@@ -1034,24 +1155,24 @@ export default function Home() {
           // Basic identifiers
           sqlContext.account_number = accountNumber;
           sqlContext.supply_number = supplyNumber;
-          
+
           // Bill details
           if (currentExtracted.invoice_total_eur) sqlContext.invoice_total_eur = currentExtracted.invoice_total_eur;
           if (currentExtracted.invoice_due_date) sqlContext.invoice_due_date = currentExtracted.invoice_due_date;
           if (currentExtracted.issue_date) sqlContext.issue_date = currentExtracted.issue_date;
           if (currentExtracted.next_meter_read_date) sqlContext.next_meter_read_date = currentExtracted.next_meter_read_date;
-          
+
           // Period and consumption
           if (currentExtracted.service_period_start) sqlContext.service_period_start = currentExtracted.service_period_start;
           if (currentExtracted.service_period_end) sqlContext.service_period_end = currentExtracted.service_period_end;
           if (currentExtracted.billing_days) sqlContext.billing_days = currentExtracted.billing_days;
           if (currentExtracted.kwh_consumed) sqlContext.kwh_consumed = currentExtracted.kwh_consumed;
-          
+
           // Tariff info
           if (currentExtracted.tariff_type) sqlContext.tariff_type = currentExtracted.tariff_type;
           if (currentExtracted.tariff_status) sqlContext.tariff_status = currentExtracted.tariff_status;
           if (currentExtracted.bill_type) sqlContext.bill_type = currentExtracted.bill_type;
-          
+
           // Charges breakdown
           if (currentExtracted.supply_charges_eur) sqlContext.supply_charges_eur = currentExtracted.supply_charges_eur;
           if (currentExtracted.regulated_charges_eur) sqlContext.regulated_charges_eur = currentExtracted.regulated_charges_eur;
@@ -1059,16 +1180,16 @@ export default function Home() {
           if (currentExtracted.misc_charges_eur) sqlContext.misc_charges_eur = currentExtracted.misc_charges_eur;
           if (currentExtracted.vat_eur) sqlContext.vat_eur = currentExtracted.vat_eur;
           if (currentExtracted.previous_unpaid_eur) sqlContext.previous_unpaid_eur = currentExtracted.previous_unpaid_eur;
-          
+
           // Additional info
           if (currentExtracted.customer_address) sqlContext.customer_address = currentExtracted.customer_address;
           if (currentExtracted.payment_reference) sqlContext.payment_reference = currentExtracted.payment_reference;
-          
+
           // Include confidence metrics if available
           if (currentExtracted.confidence_metrics) {
             sqlContext.confidence_metrics = currentExtracted.confidence_metrics;
           }
-          
+
           console.log("[handleSend] 📦 comprehensive SQL context built with", Object.keys(sqlContext).length, "fields");
         }
 
@@ -1081,16 +1202,16 @@ export default function Home() {
         console.log("[handleSend] DB lookup will fire:", !!(accountNumber || supplyNumber));
 
         // Send comprehensive context as JSON string
-        const sqlContextString = Object.keys(sqlContext).length > 0 
-          ? JSON.stringify(sqlContext, null, 2) 
+        const sqlContextString = Object.keys(sqlContext).length > 0
+          ? JSON.stringify(sqlContext, null, 2)
           : "";
 
         const explanation = await chatWithAssistant(
-          q, 
+          q,
           "", // rag_context 
           sqlContextString, // sql_context with all extracted data
-          supplyNumber, 
-          accountNumber, 
+          supplyNumber,
+          accountNumber,
           { signal: abortControllerRef.current.signal }
         );
 

@@ -72,9 +72,11 @@ def ask_agent(prompt: str) -> str:
                                 text_parts.append(content_item.text)
                 final_text = "".join(text_parts)
 
-            # Clean up potential "WEB" prefix which sometimes appears in orchestrator responses
-            if final_text and final_text.startswith("WEB"):
-                final_text = final_text[3:]
+            # Clean up potential prefixes like "AGENT", "WEB", "Answer:" which sometimes appear
+            if final_text:
+                import re
+                # Strip combinations of these keywords including their following spaces or colons
+                final_text = re.sub(r'^(?:(?:AGENT|WEB|ANSWER|ΑΠΑΝΤΗΣΗ|ΑΠΑΝΤΗΣΗ:)[\s:]*)+', '', final_text, flags=re.IGNORECASE)
 
             if not final_text:
                 final_text = "Λυπάμαι, δεν έλαβα απάντηση από το workflow."
