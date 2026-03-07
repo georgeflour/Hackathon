@@ -242,7 +242,51 @@ function MetricsBadges({ metrics }: { metrics: any }) {
 
 /* ─── card for extracted / match data ───────────────────────────────── */
 function DataCard({ title, data, onEdit }: { title: string; data: Record<string, unknown>; onEdit?: (k: string, v: string) => void }) {
-  const rows = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  const labelMap: Record<string, string> = {
+    account_number: "Α/Α ΛΟΓΑΡΙΑΣΜΟΥ",
+    supply_number: "ΑΡΙΘΜΟΣ ΠΑΡΟΧΗΣ",
+    customer_address: "ΔΙΕΥΘΥΝΣΗ ΑΚΙΝΗΤΟΥ",
+    vendor_name: "ΕΚΔΟΤΗΣ",
+    bill_type: "ΤΥΠΟΣ ΛΟΓΑΡΙΑΣΜΟΥ",
+    tariff_status: "ΚΑΤΑΣΤΑΣΗ ΤΙΜΟΛΟΓΙΟΥ",
+    tariff_type: "ΤΙΜΟΛΟΓΙΟ",
+    invoice_due_date: "ΕΞΟΦΛΗΣΗ ΕΩΣ",
+    next_meter_read_date: "ΕΠΟΜΕΝΗ ΚΑΤΑΜΕΤΡΗΣΗ",
+    issue_date: "ΗΜ/ΝΙΑ ΕΚΔΟΣΗΣ",
+    service_period_start: "ΠΕΡΙΟΔΟΣ ΑΠΟ",
+    service_period_end: "ΠΕΡΙΟΔΟΣ ΕΩΣ",
+    kwh_consumed: "ΚΑΤΑΝΑΛΩΣΗ (kWh)",
+    invoice_total_eur: "ΠΟΣΟ ΠΛΗΡΩΜΗΣ",
+    billing_days: "ΗΜΕΡΕΣ ΚΑΤΑΝΑΛΩΣΗΣ",
+    payment_reference: "ΚΩΔΙΚΟΣ ΠΛΗΡΩΜΗΣ (RF)",
+  };
+
+  const fieldOrder = [
+    "account_number",
+    "supply_number",
+    "customer_address",
+    "vendor_name",
+    "bill_type",
+    "tariff_status",
+    "tariff_type",
+    "invoice_due_date",
+    "issue_date",
+    "invoice_total_eur",
+    "kwh_consumed",
+  ];
+
+  const rows = Object.entries(data)
+    .filter(([k, v]) => v !== null && v !== undefined && v !== "" && !k.startsWith("source_file") && k !== "metrics" && k !== "explainability")
+    .sort((a, b) => {
+      const idxA = fieldOrder.indexOf(a[0]);
+      const idxB = fieldOrder.indexOf(b[0]);
+      if (idxA === -1 && idxB === -1) return 0;
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+
+  const getLabel = (k: string) => labelMap[k] || k.replace(/_/g, " ").toUpperCase();
 
   if (onEdit) {
     return (
@@ -259,23 +303,30 @@ function DataCard({ title, data, onEdit }: { title: string; data: Record<string,
           ΔΙΟΡΘΩΣΗ ΣΤΟΙΧΕΙΩΝ
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {rows.slice(0, 10).map(([k, v]) => (
-            <div key={k} style={{ display: "grid", gridTemplateColumns: "120px 1fr", alignItems: "center", gap: 8 }}>
-              <label style={{ fontSize: 11, color: "#4B5563", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.02em", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={k.replace(/_/g, " ")}>{k.replace(/_/g, " ")}</label>
-              <input
-                value={String(v)}
-                onChange={(e) => onEdit(k, e.target.value)}
-                style={{
-                  padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,163,224,0.3)",
-                  fontSize: 13, color: "#004763", outline: "none", width: "100%",
-                  boxSizing: "border-box", transition: "all 0.2s",
-                  background: "rgba(255,255,255,0.7)", fontWeight: 500
-                }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = "#00A3E0"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,163,224,0.2)"; e.currentTarget.style.background = "#fff"; }}
-                onBlur={(e) => { e.currentTarget.style.borderColor = "rgba(0,163,224,0.3)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(255,255,255,0.7)"; }}
-              />
-            </div>
-          ))}
+          {rows.slice(0, 15).map(([k, v]) => {
+            const isEditable = k === "account_number" || k === "supply_number";
+            return (
+              <div key={k} style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center", gap: 8 }}>
+                <label style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={getLabel(k)}>{getLabel(k)}</label>
+                <input
+                  value={String(v)}
+                  readOnly={!isEditable}
+                  onChange={isEditable ? (e) => onEdit(k, e.target.value) : undefined}
+                  style={{
+                    padding: "6px 10px", borderRadius: 6,
+                    border: isEditable ? "1px solid rgba(0,163,224,0.3)" : "1px solid transparent",
+                    fontSize: 13, color: isEditable ? "#004763" : "#6B7280", outline: "none", width: "100%",
+                    boxSizing: "border-box", transition: "all 0.2s",
+                    background: isEditable ? "rgba(255,255,255,0.7)" : "transparent",
+                    fontWeight: 500,
+                    cursor: isEditable ? "text" : "default"
+                  }}
+                  onFocus={isEditable ? (e) => { e.currentTarget.style.borderColor = "#00A3E0"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(0,163,224,0.2)"; e.currentTarget.style.background = "#fff"; } : undefined}
+                  onBlur={isEditable ? (e) => { e.currentTarget.style.borderColor = "rgba(0,163,224,0.3)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.background = "rgba(255,255,255,0.7)"; } : undefined}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -291,10 +342,10 @@ function DataCard({ title, data, onEdit }: { title: string; data: Record<string,
       fontSize: 13,
     }}>
       <div style={{ color: "#00A3E0", fontWeight: 600, marginBottom: 8, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>{title}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 12px", alignItems: "baseline" }}>
-        {rows.slice(0, 10).map(([k, v]) => (
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 14px", alignItems: "baseline" }}>
+        {rows.slice(0, 15).map(([k, v]) => (
           <div key={k} style={{ display: "contents" }}>
-            <span style={{ color: "#9CA3AF", whiteSpace: "nowrap" }}>{k.replace(/_/g, " ")}</span>
+            <span style={{ color: "#9CA3AF", whiteSpace: "nowrap", fontSize: 11, fontWeight: 500 }}>{getLabel(k)}</span>
             <span style={{ color: "#111827", wordBreak: "break-all", fontWeight: 500 }}>{String(v)}</span>
           </div>
         ))}
@@ -302,6 +353,7 @@ function DataCard({ title, data, onEdit }: { title: string; data: Record<string,
     </div>
   );
 }
+
 
 /* ─── individual chat bubble ─────────────────────────────────────────── */
 function Bubble({ msg, onVerify, onCancelEdit, onEditPayload }: { msg: Message, onVerify?: (id: string, ok: boolean) => void, onCancelEdit?: (id: string) => void, onEditPayload?: (id: string, newPayload: Record<string, unknown>) => void }) {
