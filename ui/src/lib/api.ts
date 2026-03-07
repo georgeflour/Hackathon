@@ -46,6 +46,8 @@ export async function chatWithAssistant(
   question: string,
   ragContext: string = "",
   sqlContext: string = "",
+  supplyNumber: string = "",
+  accountNumber: string = "",
   init?: RequestInit
 ): Promise<Record<string, unknown>> {
   return apiFetch("/chat", {
@@ -56,9 +58,12 @@ export async function chatWithAssistant(
       question,
       rag_context: ragContext,
       sql_context: sqlContext,
+      supply_number: supplyNumber || undefined,
+      account_number: accountNumber || undefined,
     }),
   });
 }
+
 
 // ─── Chat History Methods ──────────────────────────────────────────────
 

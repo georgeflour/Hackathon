@@ -4,9 +4,148 @@ from src.backend.agent import ask_agent
 import random
 import re
 import time
+import logging
+import sqlite3
+from pathlib import Path
+
+# ── Logger ─────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s  [%(levelname)s]  %(name)s — %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("chat.db")
 
 router = APIRouter()
 
+# ── SQLite config ──────────────────────────────────────────────
+_DB_PATH = Path(__file__).parent.parent.parent / "data" / "dwh" / "customers_bills.db"
+
+
+def get_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(str(_DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+# ── Shared formatter ───────────────────────────────────────────
+def _format_bill_and_customer(bill_row, customer) -> str:
+    parts: list[str] = []
+    parts.append("=== BILL ===")
+    parts.append(f"Αρ. Παροχής   : {bill_row['Arxikos_Paroxis']}")
+    parts.append(f"Α/Α Λογ/σμού  : {bill_row['AccountNumber']}")
+    parts.append(f"Κατηγορία     : {bill_row['Category']}")
+    parts.append(f"Περίοδος      : {bill_row['FromDate']} → {bill_row['ToDate']}")
+    parts.append(f"Κατανάλωση    : {bill_row['Consumption']} kWh")
+    parts.append(f"Συν. Ποσό     : {bill_row['SynoloPoso']} EUR")
+    parts.append(f"Χρεώσεις ΔΕΗ  : {bill_row['Charge_DEH']} EUR")
+    parts.append(f"Ρυθμ. Χρεώσεις: {bill_row['RegulatedCharges']} EUR")
+    parts.append(f"Έναντι Κατ.   : {bill_row['AgainstConsumption']} EUR")
+    parts.append(f"Διάφορα       : {bill_row['Misc']} EUR")
+    parts.append(f"ΦΠΑ           : {bill_row['VAT']} EUR")
+    parts.append(f"Προηγ. Ανεξόφλ: {bill_row['PreviousUnpaid']} EUR")
+    parts.append(f"Σύνολο Πληρ.  : {bill_row['TotalPayment']} EUR")
+    parts.append(f"Ποσό Πληρ.    : {bill_row['PaymentAmount']} EUR")
+    if customer:
+        parts.append("\n=== CUSTOMER PROFILE ===")
+        parts.append(f"Όνομα         : {customer['Name']}")
+        parts.append(f"Ιδιότητα      : {customer['EmployeeOrPensioner']}")
+        parts.append(f"ΑΦΜ           : {customer['AFM']}")
+        parts.append(f"Διεύθυνση     : {customer['Street']} {customer['StreetNumber']}, {customer['City']}")
+        parts.append(f"Τύπος Χρήσης  : {customer['UsageType']}")
+        parts.append(f"Συχνότητα     : {customer['BillFrequency']}")
+        parts.append(f"Τιμολόγιο     : {customer['TarifShort']}")
+        parts.append(f"Τιμολόγιο (αν): {customer['TarifAnal']}")
+    return "\n".join(parts)
+
+
+# ── Primary lookup: by AccountNumber or Arxikos_Paroxis ───────
+def get_sql_context(supply_number: str | None, account_number: str | None = None) -> str:
+    """
+    Lookup priority:
+      1. Bills.AccountNumber  → Α/Α Λογαριασμού  (OCR, most reliable)
+      2. Bills.Arxikos_Paroxis → 12-digit Αρ. Παροχής (fallback)
+    """
+    if not supply_number and not account_number:
+        return ""
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        bill_row = None
+
+        if account_number:
+            cursor.execute("SELECT * FROM Bills WHERE AccountNumber = ?", (account_number,))
+            bill_row = cursor.fetchone()
+            if bill_row:
+                logger.info("✅ Bills SELECT by AccountNumber=%s → %s", account_number, dict(bill_row))
+            else:
+                logger.warning("⚠️  Bills SELECT by AccountNumber=%s → no rows found", account_number)
+
+        if not bill_row and supply_number:
+            cursor.execute("SELECT * FROM Bills WHERE Arxikos_Paroxis = ?", (supply_number,))
+            bill_row = cursor.fetchone()
+            if bill_row:
+                logger.info("✅ Bills SELECT by Arxikos_Paroxis=%s → %s", supply_number, dict(bill_row))
+            else:
+                logger.warning("⚠️  Bills SELECT by Arxikos_Paroxis=%s → no rows found", supply_number)
+
+        if not bill_row:
+            logger.warning("⚠️  No Bill found for AccountNumber=%s / Arxikos_Paroxis=%s", account_number, supply_number)
+            conn.close()
+            return ""
+
+        arxikos = bill_row["Arxikos_Paroxis"]
+        cursor.execute("SELECT * FROM Customers WHERE Arxikos_Paroxis = ?", (arxikos,))
+        customer = cursor.fetchone()
+        if customer:
+            logger.info("✅ Customers SELECT by Arxikos_Paroxis=%s → %s", arxikos, dict(customer))
+        else:
+            logger.warning("⚠️  Customers SELECT by Arxikos_Paroxis=%s → no customer found", arxikos)
+
+        conn.close()
+        return _format_bill_and_customer(bill_row, customer)
+
+    except Exception as e:
+        logger.error("SQLite DB Error: %s", e, exc_info=True)
+        return f"Σφάλμα ανάκτησης δεδομένων από τη βάση: {str(e)}"
+
+
+# ── Fallback lookup: by name fragment in question text ────────
+def get_sql_context_by_name(question: str) -> str:
+    """
+    Last-resort: tokenise the question and search Customers.Name with LIKE.
+    Returns context for the first match found.
+    """
+    tokens = [t for t in re.findall(r"[A-Za-zΑ-Ωα-ωΆ-Ώά-ώ]{3,}", question)]
+    if not tokens:
+        return ""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        for token in tokens:
+            cursor.execute("SELECT * FROM Customers WHERE Name LIKE ?", (f"%{token}%",))
+            customer = cursor.fetchone()
+            if customer:
+                arxikos = customer["Arxikos_Paroxis"]
+                logger.info("🔎 Name search hit on token=%r → Customer: %s (%s)", token, customer["Name"], arxikos)
+                cursor.execute("SELECT * FROM Bills WHERE Arxikos_Paroxis = ?", (arxikos,))
+                bill_row = cursor.fetchone()
+                conn.close()
+                if bill_row:
+                    logger.info("✅ Bills fetched via name search → %s", dict(bill_row))
+                    return _format_bill_and_customer(bill_row, customer)
+                else:
+                    logger.warning("⚠️  Customer found by name but no Bill for Arxikos_Paroxis=%s", arxikos)
+                    return ""
+        conn.close()
+        logger.warning("⚠️  Name search — no Customer matched tokens: %r", tokens)
+    except Exception as e:
+        logger.error("Name search DB error: %s", e, exc_info=True)
+    return ""
+
+
+# ── System prompt ──────────────────────────────────────────────
 SYSTEM_PROMPT = """
 Είσαι βοηθός εξυπηρέτησης πελατών λογαριασμών ενέργειας.
 Απαντάς πάντα στα ελληνικά.
@@ -15,11 +154,17 @@ SYSTEM_PROMPT = """
 Δεν επινοείς αριθμούς, χρεώσεις, ημερομηνίες ή πολιτικές.
 """
 
+
+# ── Request model ──────────────────────────────────────────────
 class ChatRequest(BaseModel):
     question: str
     rag_context: str = ""
     sql_context: str = ""
+    supply_number: str | None = None    # → Bills.Arxikos_Paroxis (fallback)
+    account_number: str | None = None   # → Bills.AccountNumber  (primary)
 
+
+# ── Endpoint ───────────────────────────────────────────────────
 def generate_scientific_metrics(answer: str):
     # confidence = 0.35*top1 + 0.25*topk_mean + 0.20*support_count + 0.20*agreement
     top1 = random.uniform(0.75, 0.95)
@@ -27,16 +172,16 @@ def generate_scientific_metrics(answer: str):
     support_count = random.uniform(0.80, 1.0)
     agreement = random.uniform(0.85, 1.0)
     confidence = (0.35 * top1) + (0.25 * topk_mean) + (0.20 * support_count) + (0.20 * agreement)
-    
+
     # hallucination risk = contradiction_ratio + (1 - support_ratio)
     support_ratio = random.uniform(0.85, 0.98)
     contradiction_ratio = random.uniform(0.01, 0.05)
     hallucination_risk = contradiction_ratio + (1 - support_ratio)
-    
+
     # explainability logic
     sentences = [s.strip() for s in re.split(r'[.!?\n]', answer) if len(s.strip()) > 10]
     explainability = []
-    
+
     for i, s in enumerate(sentences[:3]):
         support_type = "Strong" if random.random() > 0.15 else "Partial"
         chunk_ref = f"Doc: {random.choice(['Τιμοκατάλογος 2024', 'Συχνές Ερωτήσεις', 'Πολιτική Πελατών', 'Ιστορικό Πελάτη'])}, p. {random.randint(1, 12)}"
@@ -46,7 +191,7 @@ def generate_scientific_metrics(answer: str):
             "support": support_type,
             "supported": support_type == "Strong"
         })
-        
+
     return {
         "confidence": round(min(1.0, confidence) * 100, 1),
         "hallucinationRisk": round(max(0.0, hallucination_risk), 3),
@@ -59,16 +204,40 @@ def generate_scientific_metrics(answer: str):
 
 @router.post("/chat")
 def chat(req: ChatRequest):
+
+    logger.info("🔥 /chat endpoint hit!")
+    logger.info("📨 Full request body: %s", req.model_dump())
+    logger.info("🔑 account_number (→ Bills.AccountNumber)   : %r", req.account_number)
+    logger.info("🔑 supply_number  (→ Bills.Arxikos_Paroxis) : %r", req.supply_number)
+
+    # ── Resolve sql_data through 3 layers ─────────────────────
+    if req.sql_context:
+        sql_data = req.sql_context
+        logger.info("ℹ️  sql_context passed directly by caller — skipping DB lookup")
+
+    elif req.account_number or req.supply_number:
+        logger.info("ℹ️  Looking up by AccountNumber=%r / Arxikos_Paroxis=%r", req.account_number, req.supply_number)
+        sql_data = get_sql_context(req.supply_number, req.account_number)
+
+    else:
+        logger.warning("⚠️  No identifiers — trying name-based fallback search in question text")
+        sql_data = get_sql_context_by_name(req.question)
+
+    logger.info("─" * 60)
+    logger.info("📄 sql_data injected into prompt:")
+    logger.info("%s", sql_data if sql_data else "— empty —")
+    logger.info("─" * 60)
+
     user_prompt = f"""
     Ερώτηση χρήστη:
     {req.question}
-    
+
     Δεδομένα από SQL:
-    {req.sql_context if req.sql_context else "Δεν υπάρχουν."}
-    
+    {sql_data if sql_data else "Δεν υπάρχουν."}
+
     Δεδομένα από knowledge base:
     {req.rag_context if req.rag_context else "Δεν υπάρχουν."}
-    
+
     Οδηγίες:
     - Απάντησε στα ελληνικά.
     - Αν τα δεδομένα δεν αρκούν, ζήτησε διευκρίνιση.
@@ -77,9 +246,10 @@ def chat(req: ChatRequest):
     """
 
     start_time = time.time()
+    logger.debug("🧠 Sending prompt to agent")
     answer = ask_agent(user_prompt)
     end_time = time.time()
-    
+
     thought_time_sec = round(end_time - start_time, 1)
 
     metrics = generate_scientific_metrics(answer)
