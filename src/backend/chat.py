@@ -10,13 +10,15 @@ from pathlib import Path
 import json
 import logging
 
-# ── Logger ─────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s  [%(levelname)s]  %(name)s — %(message)s",
-    datefmt="%H:%M:%S",
-)
+import sys
+
 logger = logging.getLogger("chat.db")
+logger.setLevel(logging.DEBUG)
+if not logger.handlers:
+    _ch = logging.StreamHandler(sys.stderr)
+    _ch.setFormatter(logging.Formatter("%(asctime)s  [%(levelname)s]  %(name)s — %(message)s", datefmt="%H:%M:%S"))
+    logger.addHandler(_ch)
+    logger.propagate = True
 
 router = APIRouter()
 
@@ -317,23 +319,18 @@ def chat(req: ChatRequest):
     logger.info("%s", sql_data if sql_data else "— empty —")
     logger.info("─" * 60)
 
-    user_prompt = f"""
-    Ερώτηση χρήστη:
-    {req.question}
-
-    Δεδομένα από SQL:
-    {sql_data if sql_data else "Δεν υπάρχουν."}
-
-    Δεδομένα από knowledge base:
-    {req.rag_context if req.rag_context else "Δεν υπάρχουν."}
-
-    Οδηγίες:
-    - Απάντησε στα ελληνικά.
-    - Αν τα δεδομένα δεν αρκούν, ζήτησε διευκρίνιση.
-    - Μη χρησιμοποιήσεις εξωτερική γνώση.
-    - Δώσε σύντομη, σαφή απάντηση.
-    """
-
+    context_parts = []
+    if sql_data:
+        context_parts.append(f"Δεδομένα πελάτη από SQL:\n{sql_data}")
+    if req.rag_context:
+        context_parts.append(f"Σχετικές πληροφορίες:\n{req.rag_context}")
+        
+    if context_parts:
+        all_context = "\n\n".join(context_parts)
+        user_prompt = f"{all_context}\n\nΕρώτηση χρήστη: {req.question}"
+    else:
+        user_prompt = req.question
+    
     start_time = time.time()
     logger.debug("🧠 Sending prompt to agent")
     answer = ask_agent(user_prompt)
