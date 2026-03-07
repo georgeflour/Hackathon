@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { uploadBill } from "@/lib/api";
 
@@ -701,6 +701,8 @@ export default function Home() {
     setMatchResult(null);
     setIsTyping(false);
     setCurrentSessionId(null);
+    localStorage.removeItem("deh_account_number");
+    localStorage.removeItem("deh_supply_number");
     if (fileRef.current) {
       fileRef.current.value = "";
     }
@@ -790,8 +792,9 @@ export default function Home() {
       setIsTyping(true);
       try {
         const { chatWithAssistant } = await import("@/lib/api");
-        const ragContent = msg.payload ? `Bill Extracted Data:\n${JSON.stringify(msg.payload, null, 2)}` : "";
-        const explanation = await chatWithAssistant(q, ragContent, "", { signal: abortControllerRef.current.signal });
+        const accountNumber = (msg.payload?.account_number as string) || localStorage.getItem("deh_account_number") || "";
+        const supplyNumber  = (msg.payload?.supply_number  as string) || localStorage.getItem("deh_supply_number")  || "";
+        const explanation = await chatWithAssistant(q, "", "", supplyNumber, accountNumber, { signal: abortControllerRef.current.signal });
         const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
         updateMsg(typingId, {
           content: textAnswer,
@@ -861,6 +864,14 @@ export default function Home() {
     try {
       const ext = await uploadBill(pending, { signal: abortControllerRef.current.signal });
       setExtracted(ext);
+
+      // ── Persist identifiers so they survive page reloads ──────────
+      const accountNum = (ext?.account_number as string) ?? "";
+      const supplyNum  = (ext?.supply_number  as string) ?? "";
+      if (accountNum) localStorage.setItem("deh_account_number", accountNum);
+      if (supplyNum)  localStorage.setItem("deh_supply_number",  supplyNum);
+      console.log("[processFiles] 💾 persisted to localStorage → account_number:", accountNum, "| supply_number:", supplyNum);
+
       updateMsg(typingId, {
         content: "I analysed your bill. Are these extracted details correct?",
         stage: "upload",
@@ -887,19 +898,46 @@ export default function Home() {
     const hasQuestion = q.length > 0;
     let pendingFiles = files;
     let localSessionId = currentSessionId;
-
     let currentExtracted = extracted;
 
-    // 1. Recover files if we have no files, no extracted data, but a previous upload was aborted.
-    if (pendingFiles.length === 0 && !currentExtracted) {
-      // Look back for the last user message to see if it had attachments
-      const lastUserMsg = messages.slice().reverse().find(m => m.role === "user");
-      if (lastUserMsg?.attachments?.length) {
-        pendingFiles = lastUserMsg.attachments;
+    // ── Recover extracted payload if state was lost ───────────────
+    if (!currentExtracted) {
+      // 1. Try in-memory messages (same session, no reload)
+      const lastUpload = [...messages].reverse().find(m => m.stage === "upload" && m.payload);
+      if (lastUpload?.payload) {
+        currentExtracted = lastUpload.payload as Record<string, unknown>;
+        setExtracted(currentExtracted);
+        console.log("[handleSend] ♻️  recovered extracted from upload message payload");
+      } else {
+        // 2. Fall back to localStorage (survives page reloads)
+        const storedAccount = localStorage.getItem("deh_account_number");
+        const storedSupply  = localStorage.getItem("deh_supply_number");
+        if (storedAccount || storedSupply) {
+          currentExtracted = { account_number: storedAccount ?? "", supply_number: storedSupply ?? "" };
+          console.log("[handleSend] ♻️  recovered identifiers from localStorage → account_number:", storedAccount, "| supply_number:", storedSupply);
+        }
       }
     }
 
-    if (pendingFiles.length === 0 && !hasQuestion) return;
+    console.log("[handleSend] ── START ──────────────────────────────");
+    console.log("[handleSend] question:", q || "(none)");
+    console.log("[handleSend] files attached:", pendingFiles.length);
+    console.log("[handleSend] currentSessionId:", localSessionId);
+    console.log("[handleSend] extracted state on entry:", currentExtracted);
+
+    // 1. Recover files if we have no files, no extracted data, but a previous upload was aborted.
+    if (pendingFiles.length === 0 && !currentExtracted) {
+      const lastUserMsg = messages.slice().reverse().find(m => m.role === "user");
+      if (lastUserMsg?.attachments?.length) {
+        pendingFiles = lastUserMsg.attachments;
+        console.log("[handleSend] recovered", pendingFiles.length, "file(s) from previous message");
+      }
+    }
+
+    if (pendingFiles.length === 0 && !hasQuestion) {
+      console.log("[handleSend] nothing to send — aborting");
+      return;
+    }
 
     setInput("");
     setIsTyping(true);
@@ -911,6 +949,9 @@ export default function Home() {
     const nonImageNames = nonImageFiles.length > 0 ? `📎 ${nonImageFiles.map((f) => f.name).join(", ")}` : "";
     const userContent = [nonImageNames, hasQuestion ? q : ""].filter(Boolean).join("\n");
 
+    console.log("[handleSend] userContent:", userContent);
+    console.log("[handleSend] imageFiles:", imageFiles.length, "| nonImageFiles:", nonImageFiles.length);
+
     addMsg({
       role: "user",
       content: userContent,
@@ -920,27 +961,34 @@ export default function Home() {
 
     try {
       const imageBase64s = await Promise.all(imageFiles.map(f => fileToBase64(f)));
-
       const api = await import("@/lib/api");
       if (!localSessionId) {
         localSessionId = await api.createSession(userContent.slice(0, 30) || "File Upload");
         setCurrentSessionId(localSessionId);
+        console.log("[handleSend] new session created:", localSessionId);
         api.getSessions().then((data) => setSessions(data as any)).catch(console.error);
+      } else {
+        console.log("[handleSend] reusing existing session:", localSessionId);
       }
       await api.saveMessage(localSessionId, "user", userContent, imageBase64s);
-    } catch (e) { console.error(e); }
+      console.log("[handleSend] user message saved to history");
+    } catch (e) { console.error("[handleSend] session/save error:", e); }
 
-    setFiles([]); // clear attachment bar
+    setFiles([]);
 
     // 3. Process Files (Upload + Extract) if needed
     const isExplicitUpload = files.length > 0;
+    console.log("[handleSend] isExplicitUpload:", isExplicitUpload, "| has currentExtracted:", !!currentExtracted);
     if (isExplicitUpload || (pendingFiles.length > 0 && !currentExtracted)) {
+      console.log("[handleSend] ── uploading & extracting bill ──────");
       const ext = await processFiles(pendingFiles, hasQuestion ? q : undefined);
       if (!ext) {
+        console.warn("[handleSend] extraction returned null — stopping");
         setIsTyping(false);
         return;
       }
       currentExtracted = ext;
+      console.log("[handleSend] extraction result:", currentExtracted);
       setIsTyping(false);
       return; // Stop here and wait for the user to click Tick or Cross
     }
@@ -951,13 +999,36 @@ export default function Home() {
       const typingId = addMsg({ role: "assistant", content: "…", typingType: "chat" });
       setIsTyping(true);
       try {
-        const currentMatch = matchResult || {};
-        // Import and run chatWithAssistant instead of the older endpoint
         const { chatWithAssistant } = await import("@/lib/api");
 
-        const ragContent = currentExtracted ? `Bill Extracted Data:\n${JSON.stringify(currentExtracted, null, 2)}` : "";
-        const explanation = await chatWithAssistant(q, ragContent, "", { signal: abortControllerRef.current.signal });
+        // Extract identifiers for SQLite lookup
+        // account_number → Bills.AccountNumber  (primary,  e.g. "20260318003")
+        // supply_number  → Bills.Arxikos_Paroxis (fallback, e.g. "650182947331")
+        // Priority: currentExtracted (from OCR) → localStorage (persisted from last upload)
+        const accountNumber =
+          (currentExtracted?.account_number as string) ||
+          localStorage.getItem("deh_account_number") ||
+          "";
+        const supplyNumber =
+          (currentExtracted?.supply_number as string) ||
+          localStorage.getItem("deh_supply_number") ||
+          "";
+
+        console.log("[handleSend] ── calling chatWithAssistant ────────");
+        console.log("[handleSend] question sent to API:", q);
+        console.log("[handleSend] accountNumber (primary):", accountNumber || "(empty)");
+        console.log("[handleSend] supplyNumber  (fallback):", supplyNumber || "(empty)");
+        console.log("[handleSend] source → extracted:", !!currentExtracted?.account_number, "| localStorage:", !!localStorage.getItem("deh_account_number"));
+        console.log("[handleSend] DB lookup will fire:", !!(accountNumber || supplyNumber));
+
+        const explanation = await chatWithAssistant(q, "", "", supplyNumber, accountNumber, { signal: abortControllerRef.current.signal });
+
+        console.log("[handleSend] ── response received ─────────────────");
+        console.log("[handleSend] raw API response:", explanation);
+
         const textAnswer = (explanation?.answer as string) || (explanation?.message as string) || "Done.";
+        console.log("[handleSend] textAnswer:", textAnswer?.slice(0, 120), textAnswer?.length > 120 ? "…" : "");
+
         updateMsg(typingId, {
           content: textAnswer,
           stage: "answer",
@@ -966,22 +1037,26 @@ export default function Home() {
 
         if (localSessionId) {
           import("@/lib/api").then(api => api.saveMessage(localSessionId as string, "assistant", textAnswer)).catch(console.error);
+          console.log("[handleSend] assistant message saved to history");
         }
       } catch (e: any) {
         if (e.name === "AbortError") {
+          console.log("[handleSend] request aborted by user");
           removeMsg(typingId);
         } else {
+          console.error("[handleSend] chatWithAssistant error:", e);
           updateMsg(typingId, { content: `Assistant is not fully wired up for questions yet, but I received: "${q}"\n\n(Error: ${String(e)})` });
         }
       }
     } else if (pendingFiles.length > 0) {
-      // Just uploaded files, no question
+      console.log("[handleSend] files uploaded but no question — prompting user");
       addMsg({
         role: "assistant",
         content: "You can now ask me anything about your bill, e.g. \"Why is my bill higher than usual?\"",
       });
     }
 
+    console.log("[handleSend] ── END ────────────────────────────────");
     setIsTyping(false);
   }
 

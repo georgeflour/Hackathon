@@ -15,6 +15,7 @@ rapidfuzz
 # OCR 
 azure-ai-documentintelligence
 azure-core
+azure-identity
 python-dotenv
 
 # LLM
