@@ -149,7 +149,7 @@ function MetricsBadges({ metrics }: { metrics: any }) {
           background: "rgba(0,163,224,0.06)", border: "1px solid rgba(0,163,224,0.15)",
           color: "#00A3E0", cursor: "help", transition: "all 0.2s"
         }}>
-          🎯 Confidence: {metrics.confidence}%
+          Confidence: {metrics.confidence}%
         </span>
         {hovered === "confidence" && (
           <div className="fade-up" style={{
@@ -176,10 +176,10 @@ function MetricsBadges({ metrics }: { metrics: any }) {
         <span style={{
           display: "inline-flex", alignItems: "center", gap: 4,
           padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-          background: "rgba(245, 158, 11, 0.06)", border: "1px solid rgba(245, 158, 11, 0.15)",
-          color: "#D97706", cursor: "help", transition: "all 0.2s"
+          background: "rgba(0,163,224,0.06)", border: "1px solid rgba(0,163,224,0.15)",
+          color: "#00A3E0", cursor: "help", transition: "all 0.2s"
         }}>
-          🛡️ Hallucination Risk: {metrics.hallucinationRisk}
+          Hallucination Risk: {metrics.hallucinationRisk}
         </span>
         {hovered === "hallucination" && (
           <div className="fade-up" style={{
@@ -206,10 +206,10 @@ function MetricsBadges({ metrics }: { metrics: any }) {
         <span style={{
           display: "inline-flex", alignItems: "center", gap: 4,
           padding: "4px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-          background: "rgba(16, 185, 129, 0.06)", border: "1px solid rgba(16, 185, 129, 0.15)",
-          color: "#059669", cursor: "help", transition: "all 0.2s"
+          background: "rgba(0,163,224,0.06)", border: "1px solid rgba(0,163,224,0.15)",
+          color: "#00A3E0", cursor: "help", transition: "all 0.2s"
         }}>
-          🔍 Explainability Trace
+          Explainability Trace
         </span>
         {hovered === "explainability" && (
           <div className="fade-up" style={{
@@ -1859,9 +1859,8 @@ export default function Home() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", display: "flex", alignItems: "center", gap: 10 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FA4616" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                  SCIENTIFIC VERIFICATION
+                <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(250, 70, 22, 0.7)", display: "flex", alignItems: "center", gap: 10 }}>
+                  ADVANCED METRICS
                 </div>
                 <button
                   onClick={() => setActiveMetrics(null)}

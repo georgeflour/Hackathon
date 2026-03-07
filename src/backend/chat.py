@@ -424,42 +424,7 @@ class ChatRequest(BaseModel):
 
 
 # ── Endpoint ───────────────────────────────────────────────────
-def generate_scientific_metrics(answer: str):
-    # confidence = 0.35*top1 + 0.25*topk_mean + 0.20*support_count + 0.20*agreement
-    top1 = random.uniform(0.75, 0.95)
-    topk_mean = random.uniform(0.70, 0.90)
-    support_count = random.uniform(0.80, 1.0)
-    agreement = random.uniform(0.85, 1.0)
-    confidence = (0.35 * top1) + (0.25 * topk_mean) + (0.20 * support_count) + (0.20 * agreement)
-
-    # hallucination risk = contradiction_ratio + (1 - support_ratio)
-    support_ratio = random.uniform(0.85, 0.98)
-    contradiction_ratio = random.uniform(0.01, 0.05)
-    hallucination_risk = contradiction_ratio + (1 - support_ratio)
-
-    # explainability logic
-    sentences = [s.strip() for s in re.split(r'[.!?\n]', answer) if len(s.strip()) > 10]
-    explainability = []
-
-    for i, s in enumerate(sentences[:3]):
-        support_type = "Strong" if random.random() > 0.15 else "Partial"
-        chunk_ref = f"Doc: {random.choice(['Τιμοκατάλογος 2024', 'Συχνές Ερωτήσεις', 'Πολιτική Πελατών', 'Ιστορικό Πελάτη'])}, p. {random.randint(1, 12)}"
-        explainability.append({
-            "claim": s,
-            "source": chunk_ref,
-            "support": support_type,
-            "supported": support_type == "Strong"
-        })
-
-    return {
-        "confidence": round(min(1.0, confidence) * 100, 1),
-        "hallucinationRisk": round(max(0.0, hallucination_risk), 3),
-        "explainability": explainability,
-        "formulas": {
-            "confidence": "0.35*top1 + 0.25*topk_mean + 0.20*support_count + 0.20*agreement",
-            "hallucinationRisk": "contradiction_ratio + (1 - support_ratio)"
-        }
-    }
+# ── Removed generate_scientific_metrics with random numbers ──────
 
 @router.post("/chat")
 def chat(req: ChatRequest):
@@ -545,6 +510,25 @@ def chat(req: ChatRequest):
         user_prompt = f"{all_context}\n\nΕρώτηση χρήστη: {req.question}"
     else:
         user_prompt = req.question
+
+    user_prompt += """
+\n[ΣΗΜΑΝΤΙΚΗ ΟΔΗΓΙΑ]
+Στο τέλος της απάντησής σου (μετά από ενδεχόμενα Sources), ΠΡΕΠΕΙ να προσθέσεις ένα JSON block (σε ```json ... ```) με τα metrics αξιοπιστίας της απάντησής σου βάσει των δεδομένων που βρήκες.
+Μορφή:
+```json
+{
+  "confidence": <αριθμός 0-100, πχ 85.5>,
+  "hallucinationRisk": <αριθμός 0.0-1.0, πχ 0.05>,
+  "explainability": [
+    {
+      "claim": "<βασικός ισχυρισμός από την απάντησή σου>",
+      "source": "<πηγή από την οποία προκύπτει, π.χ. 'Τιμοκατάλογος' ή 'SQL Δεδομένα'>",
+      "support": "Strong"
+    }
+  ]
+}
+```
+"""
     
     start_time = time.time()
     logger.debug("🧠 Sending prompt to agent")
@@ -553,8 +537,31 @@ def chat(req: ChatRequest):
 
     thought_time_sec = round(end_time - start_time, 1)
 
-    metrics = generate_scientific_metrics(answer)
-    metrics["thoughtTime"] = thought_time_sec
+    # ── Parse metrics from LLM response ──
+    metrics = {
+        "confidence": 80.0,
+        "hallucinationRisk": 0.1,
+        "explainability": [],
+        "thoughtTime": thought_time_sec
+    }
+    
+    json_match = re.search(r'```json\s*(\{.*?\})\s*```', answer, re.DOTALL)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group(1))
+            metrics["confidence"] = parsed.get("confidence", 80.0)
+            metrics["hallucinationRisk"] = parsed.get("hallucinationRisk", 0.1)
+            
+            exp_list = parsed.get("explainability", [])
+            for e in exp_list:
+                e["supported"] = (e.get("support", "") == "Strong")
+            metrics["explainability"] = exp_list
+            
+            # Remove JSON block from the final answer text sent to UI
+            answer = answer[:json_match.start()].strip()
+            
+        except Exception as e:
+            logger.warning("Could not parse LLM metrics JSON: %s", e)
 
     return {
         "answer": answer.strip(),
