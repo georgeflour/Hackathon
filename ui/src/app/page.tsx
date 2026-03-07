@@ -304,7 +304,7 @@ function DataCard({ title, data, onEdit }: { title: string; data: Record<string,
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {rows.slice(0, 15).map(([k, v]) => {
-            const isEditable = k === "account_number" || k === "supply_number";
+            const isEditable = k === "supply_number";
             return (
               <div key={k} style={{ display: "grid", gridTemplateColumns: "140px 1fr", alignItems: "center", gap: 8 }}>
                 <label style={{ fontSize: 10, color: "#4B5563", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em", textAlign: "right", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={getLabel(k)}>{getLabel(k)}</label>
@@ -356,7 +356,13 @@ function DataCard({ title, data, onEdit }: { title: string; data: Record<string,
 
 
 /* ─── individual chat bubble ─────────────────────────────────────────── */
-function Bubble({ msg, onVerify, onCancelEdit, onEditPayload }: { msg: Message, onVerify?: (id: string, ok: boolean) => void, onCancelEdit?: (id: string) => void, onEditPayload?: (id: string, newPayload: Record<string, unknown>) => void }) {
+function Bubble({ msg, onVerify, onCancelEdit, onEditPayload, onShowMetrics }: {
+  msg: Message,
+  onVerify?: (id: string, ok: boolean) => void,
+  onCancelEdit?: (id: string) => void,
+  onEditPayload?: (id: string, newPayload: Record<string, unknown>) => void,
+  onShowMetrics?: (metrics: any) => void
+}) {
   const isUser = msg.role === "user";
   const isSystem = msg.role === "system";
 
@@ -390,12 +396,56 @@ function Bubble({ msg, onVerify, onCancelEdit, onEditPayload }: { msg: Message, 
       )}
 
       <div style={{
+        position: "relative",
         maxWidth: "75%",
         display: "flex",
         flexDirection: "column",
         alignItems: isUser ? "flex-end" : "flex-start",
-        gap: 4,
       }}>
+        {/* Top Info Row (Thought and Make Sure) */}
+        {!isUser && msg.payload && (msg.payload as any).metrics && (
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+            marginBottom: 4,
+            padding: "0 4px"
+          }}>
+            <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}>
+              {(msg.payload as any).metrics.thoughtTime && (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                  Thought for {(msg.payload as any).metrics.thoughtTime} s
+                </>
+              )}
+            </div>
+            <button
+              onClick={() => onShowMetrics?.((msg.payload as any).metrics)}
+              style={{
+                fontSize: 11,
+                color: "rgba(250, 70, 22, 0.7)",
+                fontWeight: 700,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 8px",
+                borderRadius: 6,
+                transition: "all 0.2s",
+                textTransform: "uppercase",
+                letterSpacing: "0.03em"
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.background = "rgba(250,70,22,0.08)"; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = "transparent"; }}
+            >
+              Advanced Metrics
+            </button>
+          </div>
+        )}
+
         <div style={{
           background: isUser
             ? "linear-gradient(135deg, #c8ecf8 0%, #e8f7fd 100%)"
@@ -409,16 +459,9 @@ function Bubble({ msg, onVerify, onCancelEdit, onEditPayload }: { msg: Message, 
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
           overflow: "visible",
+          position: "relative",
         }}>
-          {!isUser && msg.payload && (msg.payload as any).metrics && (
-            <MetricsBadges metrics={(msg.payload as any).metrics} />
-          )}
-          {!isUser && msg.payload && (msg.payload as any).metrics?.thoughtTime && msg.content !== "…" && (
-            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 8, display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "rgba(0,0,0,0.04)", borderRadius: 6, width: "fit-content" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              Thought for {(msg.payload as any).metrics.thoughtTime} s
-            </div>
-          )}
+
           {/* Image thumbnails */}
           {msg.imageUrls && msg.imageUrls.length > 0 && (
             <div style={{
@@ -549,6 +592,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [activeMetrics, setActiveMetrics] = useState<any | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [extracted, setExtracted] = useState<Record<string, unknown> | null>(null);
   const [matchResult, setMatchResult] = useState<Record<string, unknown> | null>(null);
@@ -1240,7 +1284,13 @@ export default function Home() {
           ) : (
             messages.map((msg) => (
               <div key={msg.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <Bubble msg={msg} onVerify={handleVerify} onCancelEdit={handleCancelEdit} onEditPayload={handleEditPayload} />
+                <Bubble
+                  msg={msg}
+                  onVerify={handleVerify}
+                  onCancelEdit={handleCancelEdit}
+                  onEditPayload={handleEditPayload}
+                  onShowMetrics={(m) => setActiveMetrics(m)}
+                />
               </div>
             ))
           )}
@@ -1498,6 +1548,83 @@ export default function Home() {
           </div>
         </div>
       </div>
+      {/* Global Scientific Metrics Modal */}
+      {activeMetrics && (
+        <>
+          {/* Backdrop */}
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(0,0,0,0.5)",
+              backdropFilter: "blur(6px)",
+              zIndex: 10000,
+              cursor: "default"
+            }}
+            onClick={() => setActiveMetrics(null)}
+          />
+          {/* Centered Modal Content */}
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 10001,
+              width: "90%",
+              maxWidth: 420,
+              cursor: "default"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="fade-up"
+              style={{
+                background: "#fff",
+                border: "1px solid #E5E7EB",
+                borderRadius: 20,
+                padding: "28px",
+                boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+                width: "100%",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827", display: "flex", alignItems: "center", gap: 10 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FA4616" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                  SCIENTIFIC VERIFICATION
+                </div>
+                <button
+                  onClick={() => setActiveMetrics(null)}
+                  style={{
+                    background: "rgba(0,0,0,0.05)",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#6B7280",
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.1)"; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = "rgba(0,0,0,0.05)"; }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
+              <MetricsBadges metrics={activeMetrics} />
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #F3F4F6", fontSize: 12, color: "#9CA3AF", fontStyle: "italic", textAlign: "center", lineHeight: 1.6 }}>
+                This detailed trace provide scientific evidence of the AI's reasoning, ensuring transparency and alignment with your billing documents.
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
