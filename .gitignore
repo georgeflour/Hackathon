@@ -16,3 +16,5 @@ data/knowledge/index_meta.json
 __pycache__/
 *.pyc
 *.jpg # optional: ignore test images too
+venv
+*.db
